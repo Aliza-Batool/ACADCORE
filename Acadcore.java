@@ -19,7 +19,7 @@ class User{
         this.id=id;
         this.name=name;
         this.email=email;
-        this.password=password;
+        setPassword(password);   
     }
     //methods
    int getId(){
@@ -74,7 +74,7 @@ class Course{
        return facultyAssigned;
 }
 }
-      class Attendance{
+class Attendance{
    // attributes
         private Course course;
         private int totalClasses;
@@ -95,15 +95,62 @@ class Course{
         }
       }
       }
-      class Student extends User{
+class Student extends User{
           //attributes
         private Course[] enrolledCourses = new Course[5];   //max course limit is 5
         private Attendance[] attendanceRecords = new Attendance[5];
         public Student(int id,String name,String email,String password){
             super(id,name,email,password);
         }
-
       }
+
+class Room {
+    private int roomNumber;
+    private int capacity;
+
+    public Room(int roomNumber, int capacity){
+        this.roomNumber = roomNumber;
+        this.capacity = capacity;
+    }
+}
+
+class TimeSlot {
+    private String day;
+    private int startHour;
+    private int endHour;
+}
+
+class Batch {
+    private String className;
+    private int studentCount;
+    private Course[] courses;
+}
+
+class Faculty extends User {
+    private Course[] assignedCourses;
+    private TimeSlot[] availableSlots;
+
+    public Faculty(int id, String name, String email, String password) {
+        super(id,name,email,password);
+    }
+}
+
+class ScheduledClass {  //to store output of timetable generator.
+
+    private Course course;
+    private Faculty teacher;
+    private Room room;
+    private TimeSlot slot;
+    private Section section;
+}
+class Timetable {   //Stores all scheduled classes.
+
+    private ScheduledClass[] schedule;
+    private int totalEntries;
+
+}
+
+
 
 public class Acadcore {
 
