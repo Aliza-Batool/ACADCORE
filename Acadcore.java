@@ -8,6 +8,7 @@ package com.km.acadcore;
  *
  * @author abist
  */
+
 class User{
     //attributes
     private int id;
@@ -114,10 +115,94 @@ class Room {
     }
 }
 
+//class for time
+class Time{
+    private int hour;
+    private int minute;
+    
+    //constructor 
+    public Time(){
+        hour=0;
+        minute=0;
+    }
+    
+    //constructor
+    public Time(int hour, int minute){
+        this.hour=hour;
+        this.minute=minute;
+    }
+    
+    //getter setters
+    void setHour(int hour){
+        this.hour=hour;
+    }
+    
+    void setMinute(int minute){
+        this.minute=minute;
+    }
+    String getTime(){
+        return String.format("%02d:%02d", hour,minute);
+    }
+
+}
+
 class TimeSlot {
     private String day;
-    private int startHour;
-    private int endHour;
+    private Time startTime;
+    private Time endTime;
+
+    // constructor 
+    public TimeSlot(int dayChoice, int sh, int sm, int eh, int em){
+        setDay(dayChoice);
+        setStartTime(sh, sm);
+        setEndTime(eh, em);
+}
+    //added getter setters and validations
+    void setDay(int choice){
+        //System.out.println("Enter\n1 for Monday\n2 for Tuesday\n3 for Wednesday\n4 for Thursday\n5 for Friday");
+        if(choice<6 && choice>0){
+            switch (choice){
+                case 1:
+                    day="Monday";
+                    break;
+                case 2:
+                    day="Tuesday";
+                    break;
+                case 3:
+                    day="Wednesday";
+                    break;
+                case 4:
+                    day="Thursday";
+                    break;
+                case 5:
+                    day="Friday";
+                    break;
+            }            
+        } 
+        else{
+            System.out.println("Invalid number entered! day set to Monday.");
+            day="Monday";
+        }
+    }
+    String getDay(){
+        return day;
+    }    
+    
+    void setStartTime(int hour, int minute){
+        startTime=new Time(hour, minute);
+    }
+    
+    Time getStartTime(){
+        return startTime;
+    }
+    
+    void setEndTime(int hour, int minute){
+        endTime=new Time(hour, minute);
+    }
+    
+    Time getEndTime(){
+        return endTime;
+    }
 }
 
 class Batch {
@@ -135,13 +220,14 @@ class Faculty extends User {
     }
 }
 
+
 class ScheduledClass {  //to store output of timetable generator.
 
     private Course course;
     private Faculty teacher;
     private Room room;
     private TimeSlot slot;
-    private Section section;
+    private char section;
 }
 class Timetable {   //Stores all scheduled classes.
 
@@ -149,6 +235,8 @@ class Timetable {   //Stores all scheduled classes.
     private int totalEntries;
 
 }
+
+
 
 
 
