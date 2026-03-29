@@ -134,11 +134,19 @@ class Time{
     
     //getter setters
     void setHour(int hour){
-        this.hour=hour;
+        if(hour<=24 && hour>0)
+            this.hour=hour;
+        else{
+            System.out.println("Invalid value entered!\nHour set to 00.");
+        }              
     }
     
     void setMinute(int minute){
-        this.minute=minute;
+        if(minute<=60 && minute>0)
+            this.minute=minute;
+        else{
+            System.out.println("Invalid value entered!\nMinute set to 00.");
+        } 
     }
     String getTime(){
         return String.format("%02d:%02d", hour,minute);
@@ -150,7 +158,7 @@ class TimeSlot {
     private String day;
     private Time startTime;
     private Time endTime;
-
+    
     // constructor 
     public TimeSlot(int dayChoice, int sh, int sm, int eh, int em){
         setDay(dayChoice);
@@ -220,7 +228,6 @@ class Faculty extends User {
     }
 }
 
-
 class ScheduledClass {  //to store output of timetable generator.
 
     private Course course;
@@ -229,6 +236,7 @@ class ScheduledClass {  //to store output of timetable generator.
     private TimeSlot slot;
     private char section;
 }
+
 class Timetable {   //Stores all scheduled classes.
 
     private ScheduledClass[] schedule;
@@ -236,9 +244,12 @@ class Timetable {   //Stores all scheduled classes.
 
 }
 
-
-
-
+//added basic admin module
+class Admin extends User {
+    public Admin(int id, String name, String email, String password){
+        super(id,name,email,password);
+    }
+}
 
 public class Acadcore {
 
@@ -246,3 +257,4 @@ public class Acadcore {
         System.out.println("Hello World!");
     }
 }
+
