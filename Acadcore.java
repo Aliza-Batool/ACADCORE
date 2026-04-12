@@ -1,12 +1,12 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- */
 
-package com.km.acadcore;
+package com.km.kmproject1;
 
 /**
  *
  * @author abist
+ */
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
 
 class User{
@@ -103,6 +103,7 @@ class Student extends User{
         public Student(int id,String name,String email,String password){
             super(id,name,email,password);
         }
+        
       }
 
 class Room {
@@ -112,6 +113,14 @@ class Room {
     public Room(int roomNumber, int capacity){
         this.roomNumber = roomNumber;
         this.capacity = capacity;
+    }
+
+    int getRoomNumber(){
+        return roomNumber;
+    }
+
+    int getCapacity(){
+        return capacity;
     }
 }
 
@@ -150,6 +159,10 @@ class Time{
     }
     String getTime(){
         return String.format("%02d:%02d", hour,minute);
+    }
+
+    int toMinutes(){
+        return (hour * 60) + minute;
     }
 
 }
@@ -211,6 +224,30 @@ class TimeSlot {
     Time getEndTime(){
         return endTime;
     }
+
+    boolean overlaps(TimeSlot other){
+        //checking null pointer exception
+        if(other == null){
+            return false;
+        }
+         //Checking for the same day 
+        if(!day.equals(other.day)){
+            return false;
+        }
+        int thisStart = startTime.toMinutes();
+        int thisEnd = endTime.toMinutes();
+        int otherStart = other.startTime.toMinutes();
+        int otherEnd = other.endTime.toMinutes();
+        
+        // Check if the other meeting happens entirely AFTER this one ends
+        boolean startsAfterThisEnds = otherStart >= thisEnd;
+
+        // Check if the other meeting happens entirely BEFORE this one starts
+        boolean endsBeforeThisStarts = otherEnd <= thisStart;
+
+        // If BOTH of these are false, then they MUST overlap
+        return !(startsAfterThisEnds || endsBeforeThisStarts);
+    }
 }
 
 class Batch {
@@ -235,6 +272,34 @@ class ScheduledClass {  //to store output of timetable generator.
     private Room room;
     private TimeSlot slot;
     private char section;
+
+    public ScheduledClass(Course course, Faculty teacher, Room room, TimeSlot slot, char section){
+        this.course = course;
+        this.teacher = teacher;
+        this.room = room;
+        this.slot = slot;
+        this.section = section;
+    }
+
+    Course getCourse(){
+        return course;
+    }
+
+    Faculty getTeacher(){
+        return teacher;
+    }
+
+    Room getRoom(){
+        return room;
+    }
+
+    TimeSlot getSlot(){
+        return slot;
+    }
+
+    char getSection(){
+        return section;
+    }
 }
 
 class Timetable {   //Stores all scheduled classes.
@@ -250,11 +315,9 @@ class Admin extends User {
         super(id,name,email,password);
     }
 }
-
 public class Acadcore {
 
     public static void main(String[] args) {
         System.out.println("Hello World!");
     }
 }
-
