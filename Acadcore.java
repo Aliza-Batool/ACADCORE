@@ -8,73 +8,111 @@ package com.km.kmproject1;
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
+//updtaed user class
+class User {
+    protected int id;
+    protected String name;
+    protected String email;
+    protected String password;
+    protected List<Notification> notifications;
 
-class User{
-    //attributes
-    private int id;
-    private String name;
-    private String email;
-    private String password;
-    //constructor
-    public User(int id,String name,String email,String password){
-        this.id=id;
-        this.name=name;
-        this.email=email;
-        setPassword(password);   
+    public User(int id, String name, String email, String password) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        setPassword(password);
+        this.notifications = new ArrayList<>();
     }
-    //methods
-   int getId(){
-       return id;
-   }
 
-    String getName(){
+    public int getId() {
+        return id;
+    }
+
+    public String getName() {
         return name;
     }
-   void setName(String name){
-       this.name=name;
-   }
-   String getEmail(){
-       return email;
-   }
-   void setEmail(String email){
-       this.email=email;
-   }
-   void setPassword(String password){
-    if (password !=null && password.length()>=6) {
-       this.password=password;
-   }
-    else{
-        System.out.println("Error: Password must be at least 6 characters.");    }
+
+    public void setName(String name) {
+        this.name = name;
     }
-   boolean login(String inputEmail,String inputPassword){
-           return (email.equals(inputEmail)&& password.equals(inputPassword));
-   }
-   void displayInfo(){
-       System.out.println("ID: "+id+"\nNAME: "+name+"\nEmail: "+email);
-   }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public void setPassword(String password) {
+        if (password != null && password.length() >= 6) {
+            this.password = password;
+        } else {
+            System.out.println("Error: Password must be at least 6 characters.");
+        }
+    }
+
+    public boolean login(String inputEmail, String inputPassword) {
+        return (email.equals(inputEmail) && password.equals(inputPassword));
+    }
+
+    public void displayInfo() {
+        System.out.println("ID: " + id + "\nNAME: " + name + "\nEmail: " + email);
+    }
+
+    public void addNotification(Notification notification) {
+        notifications.add(notification);
+    }
+
+    public List<Notification> getNotifications() {
+        return notifications;
+    }
 }
 
-
-class Course{
+//updated class course
+class Course {
     private int courseCode;
     private String courseName;
     private String facultyAssigned;
-    //constructor 
-    public Course(int courseCode,String courseName,String facultyAssigned){
-        this.courseCode=courseCode;
-        this.courseName=courseName;
-        this.facultyAssigned=facultyAssigned;
+    private int creditHours;
+    private boolean isLabCourse;
+    private int maxStudents;
+
+    public Course(int courseCode, String courseName, String facultyAssigned, 
+                  int creditHours, boolean isLabCourse, int maxStudents) {
+        this.courseCode = courseCode;
+        this.courseName = courseName;
+        this.facultyAssigned = facultyAssigned;
+        this.creditHours = creditHours;
+        this.isLabCourse = isLabCourse;
+        this.maxStudents = maxStudents;
     }
-    int getCourseCode(){
-       return courseCode;
-   }
-      String getCourseName(){
-       return courseName;
-   }
-      String getFacultyAssigned(){
-       return facultyAssigned;
-}
-}
+
+    public int getCourseCode() {
+        return courseCode;
+    }
+
+    public String getCourseName() {
+        return courseName;
+    }
+
+    public String getFacultyAssigned() {
+        return facultyAssigned;
+    }
+
+    public int getCreditHours() {
+        return creditHours;
+    }
+
+    public boolean isLabCourse() {
+        return isLabCourse;
+    }
+
+    public int getMaxStudents() {
+        return maxStudents;
+    }
+}//end of class course 
+
 class Attendance{
    // attributes
         private Course course;
@@ -95,16 +133,57 @@ class Attendance{
             return ((attendedClasses * 100.0) / totalClasses);
         }
       }
-      }
-class Student extends User{
-          //attributes
-        private Course[] enrolledCourses = new Course[5];   //max course limit is 5
-        private Attendance[] attendanceRecords = new Attendance[5];
-        public Student(int id,String name,String email,String password){
-            super(id,name,email,password);
-        }
-        
-      }
+   }
+
+//mltiple classes used in this code are yet to be made 
+class Student extends User {
+    private List<Course> enrolledCourses;
+    private Map<Integer, Attendance> attendanceRecords;
+    private List<StudentCourseEnrollment> courseEnrollments;
+    private StudentTimetable studentTimetable;
+    private int semester;
+
+    public Student(int id, String name, String email, String password, int semester) {
+        super(id, name, email, password);
+        this.enrolledCourses = new ArrayList<>();
+        this.attendanceRecords = new HashMap<>();
+        this.courseEnrollments = new ArrayList<>();
+        this.semester = semester;
+    }
+
+    public void enrollCourse(Course course) {
+        enrolledCourses.add(course);
+        attendanceRecords.put(course.getCourseCode(), new Attendance(course));
+    }
+
+    public List<Course> getEnrolledCourses() {
+        return enrolledCourses;
+    }
+
+    public Attendance getAttendance(int courseCode) {
+        return attendanceRecords.get(courseCode);
+    }
+
+    public List<StudentCourseEnrollment> getCourseEnrollments() {
+        return courseEnrollments;
+    }
+
+    public void addCourseEnrollment(StudentCourseEnrollment enrollment) {
+        courseEnrollments.add(enrollment);
+    }
+
+    public StudentTimetable getStudentTimetable() {
+        return studentTimetable;
+    }
+
+    public void setStudentTimetable(StudentTimetable timetable) {
+        this.studentTimetable = timetable;
+    }
+
+    public int getSemester() {
+        return semester;
+    }
+}//end of student class
 
 class Room {
     private int roomNumber;
@@ -308,6 +387,59 @@ class Timetable {   //Stores all scheduled classes.
     private int totalEntries;
 
 }
+
+//
+class StudentCourseEnrollment {
+    private int enrollmentId;
+    private Student student;
+    private Course course;
+    private int semester;
+    private boolean isRetake;
+    private Time enrollmentDate;
+    private ScheduledClass assignedClass;
+
+    public StudentCourseEnrollment(int enrollmentId, Student student, Course course, 
+                                    int semester, boolean isRetake) {
+        this.enrollmentId = enrollmentId;
+        this.student = student;
+        this.course = course;
+        this.semester = semester;
+        this.isRetake = isRetake;
+        //this.enrollmentDate = Time.now();
+    }
+
+    public int getEnrollmentId() {
+        return enrollmentId;
+    }
+
+    public Student getStudent() {
+        return student;
+    }
+
+    public Course getCourse() {
+        return course;
+    }
+
+    public int getSemester() {
+        return semester;
+    }
+
+    public boolean isRetake() {
+        return isRetake;
+    }
+
+    public LocalDateTime getEnrollmentDate() {
+        return enrollmentDate;
+    }
+
+    public ScheduledClass getAssignedClass() {
+        return assignedClass;
+    }
+
+    public void setAssignedClass(ScheduledClass scheduledClass) {
+        this.assignedClass = scheduledClass;
+    }
+}//end of class StudentCourseEnrollment
 
 //added basic admin module
 class Admin extends User {
