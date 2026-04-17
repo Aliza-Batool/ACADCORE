@@ -85,47 +85,96 @@ class User implements Displayable{
 }
 
 
-class Course{
+class Course implements Displayable{
     private int courseCode;
     private String courseName;
     private String facultyAssigned;
+    private int creditHours;//added credithours for workload calculation
+    
     //constructor 
-    public Course(int courseCode,String courseName,String facultyAssigned){
+    public Course(int courseCode, String courseName, String facultyAssigned,int creditHours){
         this.courseCode=courseCode;
         this.courseName=courseName;
         this.facultyAssigned=facultyAssigned;
+        this.creditHours= creditHours;      
     }
-    int getCourseCode(){
-       return courseCode;
-   }
-      String getCourseName(){
-       return courseName;
-   }
-      String getFacultyAssigned(){
-       return facultyAssigned;
-}
-}
+    public Course(int courseCode, String courseName, String facultyAssigned)//constructor without credithours (Overloading concept)
+    {
+        //using "this" as the first line of the constructor
+        this(courseCode, courseName, facultyAssigned, 3); // default 3 credit hours      
+    }
+    //getters
+    public int getCourseCode(){ 
+        return courseCode; 
+    }
+    public String getCourseName(){ 
+        return courseName; 
+    }
+    public String getFacultyAssigned(){ 
+        return facultyAssigned; 
+    }
+    public int getCreditHours(){ 
+        return creditHours; 
+    }
+      
+    @Override
+    public void displayInfo() {
+        System.out.println("Course [" + courseCode + "] " + courseName +
+                           "\nFaculty: " + facultyAssigned +
+                           "\nCredits: " + creditHours);
+    }  
+}//end of class Course
+
 class Attendance{
    // attributes
-        private Course course;
-        private int totalClasses;
-        private int attendedClasses;
+    private Course course;
+    private int totalClasses;
+    private int attendedClasses;
+    private static final double riskThreshold =75.0;//attendance threshold per class (static final)
 
-        public Attendance(Course c){
+    //constructor
+    public Attendance(Course c){
         course = c;
         totalClasses = 0;
         attendedClasses = 0;
-                }
+    }
     //methods
-       double getAttendancePercentage(){
-           if(totalClasses==0){
-               return 100;
-           }
-           else{
+    //getter
+    public Course getCourse(){ 
+        return course; 
+    }
+    //marking a class present
+    public void markAttendance(Boolean present){
+        totalClasses++;
+        if (present){
+            attendedClasses++;
+        }
+    }
+    //attendance percentage
+    double getAttendancePercentage(){
+        if(totalClasses==0){
+            return 100;
+        }
+        else{
             return ((attendedClasses * 100.0) / totalClasses);
         }
-      }
-      }
+    }
+    //attendance rist alert 
+    public boolean isAtRisk(){
+        return getAttendancePercentage() < riskThreshold;
+    }
+    
+    //displaying attendance
+    public void displayAttendance() {
+        System.out.printf("%-30s%d/%d(%.1f%%)%s%n",
+            course.getCourseName(),//in 30 spaces left
+            attendedClasses, totalClasses,
+            getAttendancePercentage(),
+            //if at risk it prints otherwise empty quotes
+            isAtRisk() ? "  ⚠ AT RISK" : "");
+    }
+}//end of class attendance
+
 class Student extends User{
           //attributes
         private Course[] enrolledCourses = new Course[5];   //max course limit is 5
