@@ -174,13 +174,155 @@ class Attendance{
             isAtRisk() ? "  ⚠ AT RISK" : "");
     }
 }//end of class attendance
+ //added Assignment class for assignment prioritizer                                                                    //ADDED
+class Assignment {
+ 
+    private String courseName;
+    private String title;
+    private int    daysUntilDue;   
+    private int    weightPercent;  
+    //constructor
+    public Assignment(String courseName, String title,int daysUntilDue, int weightPercent) {
+        this.courseName    = courseName;
+        this.title         = title;
+        this.daysUntilDue  = daysUntilDue;
+        this.weightPercent = weightPercent;
+    }
+    //getters
+    String getCourseName() {
+        return courseName;
+    }
 
+    String getTitle() {
+        return title;
+    }
+
+    int getDaysUntilDue() {
+        return daysUntilDue;
+    }
+
+    int getWeightPercent() {
+        return weightPercent;
+    }
+    //setters
+    void setDaysUntilDue(int daysUntilDue) {    //if deadline gets extended 
+        this.daysUntilDue = daysUntilDue;           
+}
+    void setWeightPercent(int weightPercent) {
+        this.weightPercent = weightPercent;
+    }
+    //priority score calculation based on urgency and weightage
+    public double getPriorityScore() {
+    double urgency = 1.0 / Math.max(daysUntilDue, 1);   // ranges from 0 to 1,used max function to avoid division by zero.
+    double weightScore   = weightPercent / 100.0;         // ranges from 0 to 1
+    return (weightScore * 0.6 + urgency * 0.4) * 100; // 60% to weightage and 40% to urgency
+    }
+    public void display() {
+        System.out.printf("  [%s] %-25s due in %2d days  weight: %2d%%  priority: %.2f%n",courseName, title, daysUntilDue, weightPercent, getPriorityScore());
+    }
+}//end of class assignment
+
+//study group finder class                                                                                                                   
+class StudyGroup {                                                                                                              //ADDED
+ 
+    private Course course;
+    private Student[] members;   //array to store members
+    private Student leader;    //group leader(creator of the group)
+    private int memberCount;
+    private int maxSize;    //leader decides max size of the group
+    //constructor
+    public StudyGroup(Course course, int maxSize, Student leader) {
+        this.course= course;
+        this.maxSize= maxSize;
+        this.leader = leader;
+        this.members = new Student[maxSize];
+        this.members[0] = leader; //leader is the first member of the group
+        this.memberCount = 1;   //initially only the leader is in the group
+    }
+ 
+    // add a student to the group
+    //HELPER METHODS FOR VALIDATIONS
+    public boolean isvalidMember(Student student){ 
+         //to check if the student is of the same course before adding to the group
+        for(Course c: student.getEnrolledCourses()){
+            if(c != null && c.getCourseCode() == course.getCourseCode()){
+                return true;
+            }
+        }
+        return false;
+    }
+    //to check if the student is already in the group
+    public boolean isMember(Student student){
+        for(int i=0; i<memberCount; i++){
+            if(members[i].getId() == student.getId()){
+                return true;
+            }
+        }
+        return false;
+    }
+    //main method to add member with all validations
+    public boolean addMember(Student student) {
+
+        //check if the student is enrolled in the course before adding to the group
+        if (!isvalidMember(student)) {
+            System.out.println("Student " + student.getName() + " is not enrolled in " + course.getCourseName() + ".");
+            return false;
+        }   
+
+        //check if the group is already full
+        else if (memberCount == maxSize) {
+        System.out.println("Study group for " + course.getCourseName() + " is full.");
+        return false;
+        }
+
+        //check if the student is already in the group
+        else if (isMember(student)) {
+            System.out.println("Student " + student.getName() + " is already in the study group for " + course.getCourseName() + ".");
+            return false;
+        }
+        //if all validations are passed add the student to the group
+        else {
+            members[memberCount++] = student;   //stored and incremented the member count(post increment)
+            System.out.println("Student " + student.getName() + " added to the study group for " + course.getCourseName() + ".");
+            return true;
+        }
+        
+    }
+    //getters
+    public Course getCourse(){
+        return course;
+    }
+    public int getMemberCount(){
+        return memberCount;
+    }
+
+    public Student getLeader(){
+        return leader;
+    }
+    public int getMaxSize(){
+        return maxSize;
+    }
+    //display the group details
+    public void display() {
+        System.out.println("Study Group – " + course.getCourseName() +" (" + memberCount + "/" + maxSize + " members)");
+        for (int i = 0; i < memberCount; i++) {
+            System.out.println("    " + (i + 1) + ". " + members[i].getName());
+        }
+    }
+}   //end of class study group (without gpa comparison logic)                                                                                                                      
+                                                                                                                                     //ADDED SOME ATTRIBUTES
 class Student extends User{
           //attributes
         private Course[] enrolledCourses = new Course[5];   //max course limit is 5
         private Attendance[] attendanceRecords = new Attendance[5];
-        public Student(int id,String name,String email,String password){
+        private double gpa; //added gpa attribute for study group finder
+        private double cgpa; //added cgpa attribute for study group finder
+        private int semester; //added semester attribute for profile management
+        public Student(int id,String name,String email,String password)throws InvalidPasswordException{
             super(id,name,email,password);
+        }
+        public Course[] getEnrolledCourses(){   //getter for enrolled courses                                                 //added getter to use in study group finder
+            return enrolledCourses;
         }
       }
 
