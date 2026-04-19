@@ -1,5 +1,5 @@
 
-package com.km.kmproject1;
+package com.mycompany.labs;
 
 /**
  *
@@ -8,10 +8,16 @@ package com.km.kmproject1;
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
-//  exceptions
+//  EXCEPTIONS
 //added invalid password exception
 class InvalidPasswordException extends Exception { //inherits in built exception class
     public InvalidPasswordException(String message) {
+        super(message);
+    }
+}
+//added Course Capacity Exception
+class CourseCapacityException extends Exception{
+    public CourseCapacityException(String message){
         super(message);
     }
 }
@@ -223,7 +229,8 @@ class Assignment {
 }//end of class assignment
 
 //study group finder class                                                                                                                   
-class StudyGroup {                                                                                                              //ADDED
+class StudyGroup 
+{                                                                                                              //ADDED
  
     private Course course;
     private Student[] members;   //array to store members
@@ -312,19 +319,152 @@ class StudyGroup {                                                              
 }   //end of class study group (without gpa comparison logic)                                                                                                                      
                                                                                                                                      //ADDED SOME ATTRIBUTES
 class Student extends User{
-          //attributes
-        private Course[] enrolledCourses = new Course[5];   //max course limit is 5
-        private Attendance[] attendanceRecords = new Attendance[5];
-        private double gpa; //added gpa attribute for study group finder
-        private double cgpa; //added cgpa attribute for study group finder
-        private int semester; //added semester attribute for profile management
-        public Student(int id,String name,String email,String password)throws InvalidPasswordException{
-            super(id,name,email,password);
+    private static final int MAX_COURSES = 10;  
+    //attributes
+    private Course[] enrolledCourses = new Course[MAX_COURSES];   //max course limit is 10
+    private Attendance[] attendanceRecords = new Attendance[MAX_COURSES];
+    private Assignment[] assignments = new Assignment[50];//maximum limit of assignments 50
+    private int courseCount = 0;
+    private int assignmentCount = 0;
+    private double gpa; //added gpa attribute for study group finder
+    private double cgpa; //added cgpa attribute for study group finder
+    private int semester; //added semester attribute for profile management
+    
+    //constructor might throw invalid password exception
+    public Student(int id,String name,String email,String password)throws InvalidPasswordException{
+        super(id,name,email,password);
+    }
+    //getter for enrolled courses  
+    public Course[] getEnrolledCourses(){                                                  //added getter to use in study group finder
+        return enrolledCourses;
+    }
+    
+    //methods
+    //enroll course
+    public void enrollCourse(Course c) throws CourseCapacityException {
+        if (courseCount >= MAX_COURSES) {
+            throw new CourseCapacityException(
+                getName() + " cannot enroll in more than " + MAX_COURSES + " courses.");
+        }//throws exception is courses exceed the limit
+        enrolledCourses[courseCount]   = c;
+        attendanceRecords[courseCount] = new Attendance(c);
+        courseCount++;
+        System.out.println(getName() + " enrolled in: " + c.getCourseName());
+    }
+    
+    // marking attendance
+    public void markAttendance(String name, boolean present) {
+        //method 1
+        for(int i=0;i<courseCount;i++){
+            if (name.equalsIgnoreCase(enrolledCourses[i].getCourseName()) ){
+                attendanceRecords[i].markAttendance(present);
+                return;
+            }
         }
-        public Course[] getEnrolledCourses(){   //getter for enrolled courses                                                 //added getter to use in study group finder
-            return enrolledCourses;
+        System.out.println("Invalid course index.");  
+    }
+    
+    //add an assignment
+    public void addAssignment(Assignment a) {
+        if (assignmentCount < assignments.length) {
+            assignments[assignmentCount++] = a;//stores assignment on the first available index
+            assignmentCount++;//increments no. of assignments
         }
-      }
+    }
+    
+    //assignment prioritizer
+    public void showPrioritizedAssignments() {
+        // copy valid entries into new array
+        Assignment[] sorted = new Assignment[assignmentCount];
+        for (int i = 0; i < assignmentCount; i++) 
+            sorted[i] = assignments[i];
+
+        // insertion sort descending by priority score
+        for (int i = 1; i < assignmentCount; i++) {
+            Assignment key = sorted[i];//storing 2nd element
+            int j = i - 1;//storing 1st element
+            while (j >= 0 && sorted[j].getPriorityScore() < key.getPriorityScore()) //if priority of 1st is less than 2nd
+            {
+                sorted[j + 1] = sorted[j];//storing 1st in place of 2nd
+                //now 2 places are the same and higher priority one is stored in key but no where in array
+                j--;//decremented
+            }
+            sorted[j + 1] = key;//storing higher priority in 1st place
+        }
+        
+        //printing prioritized assignments if any
+        System.out.println("\n── Assignment Prioritizer for " + getName() + " --");
+        if (assignmentCount == 0) {
+            System.out.println("  No assignments.");
+            return;
+        }
+        for (int i = 0; i < assignmentCount; i++) 
+            sorted[i].display();
+    }
+    
+    //overall attendance display
+    public void checkAttendanceRisks() {
+        System.out.println("\n── Attendance Report for " + getName() + " ──");
+        for (int i = 0; i < courseCount; i++) {
+            attendanceRecords[i].displayAttendance();
+        } //displays attendance for all courses
+    }
+    
+    //detect overlap in timeslots
+    public void detectClash(TimeSlot[] mySlots) {
+        System.out.println("\n── Clash Detection for " + getName() + " ──");
+        boolean found = false;
+        for (int i = 0; i < mySlots.length; i++) {
+            for (int j = i + 1; j < mySlots.length; j++) {
+                if (mySlots[i] != null && mySlots[j] != null &&
+                    mySlots[i].overlaps(mySlots[j])) {
+                    //checks each slot with everyother slot of the time slot array after itself
+                    //excludes checking itself and slots before it are already checked
+                    //avoids unnecessary comparisons
+                    System.out.println("  CLASH: Slot " + (i + 1) +
+                                       " overlaps with Slot " + (j + 1));
+                    found = true;
+                }
+            }
+        }
+        if (!found) System.out.println("  No clashes detected.");
+    }
+    
+    //view personal time schedule
+    public void viewTimetable(ScheduledClass[] schedule, int total) {
+        System.out.println("\n── Timetable for " + getName() + " ──");
+        for (int i = 0; i < total; i++) {
+            if (schedule[i] != null) {
+                ScheduledClass sc = schedule[i];//stores schedule class object for following methods
+                //formated printig of time schedule
+                System.out.printf("  %-25s  %s  %s-%s  Room %d%n",
+                    sc.getCourse().getCourseName(),
+                    sc.getSlot().getDay(),
+                    sc.getSlot().getStartTime().getTime(),
+                    sc.getSlot().getEndTime().getTime(),
+                    sc.getRoom().getRoomNumber());
+            }
+        }
+    }
+    //display info
+    @Override
+    public void displayInfo(){
+        super.displayInfo();
+        System.out.println("Enrolled Courses: "+courseCount);
+    }
+    //getters 
+    public int getCourseCount() { 
+        return courseCount; 
+    }
+    public Course getEnrolledCourse(int i){ 
+        return enrolledCourses[i]; 
+    }
+    public Attendance getAttendanceRecord (int i){ 
+        return attendanceRecords[i]; 
+    }//returns particular attendance
+   
+}//end of class student
+    
 
 class Room {
     private int roomNumber;
@@ -535,7 +675,7 @@ class Admin extends User {
         super(id,name,email,password);
     }
 }
-public class Acadcore {
+public class labs {
 
     public static void main(String[] args) {
         System.out.println("Hello World!");
