@@ -1,5 +1,5 @@
 
-package com.km.kmproject1;
+package com.mycompany.labs;
 
 /**
  *
@@ -8,7 +8,6 @@ package com.km.kmproject1;
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
-
 //  EXCEPTIONS
 //added invalid password exception
 class InvalidPasswordException extends Exception { //inherits in built exception class
@@ -22,11 +21,24 @@ class CourseCapacityException extends Exception{
         super(message);
     }
 }
+//added Schedule Conflict Exception
+class ScheduleConflictException extends Exception{
+    public ScheduleConflictException (String msg){
+        super(msg);
+    }
+}
+class RoomCapacityException extends Exception{
+    public RoomCapacityException(String msg){
+        super(msg);
+    }
+}
+
+// INTERFACE
 //added interface 
 interface Displayable {
     void displayInfo();
 }
-abstract class User implements Displayable{ //made user class abstract as it should not be instantiated directly
+class User implements Displayable{
     //attributes
     private int id;
     private String name;
@@ -318,10 +330,11 @@ class StudyGroup
         }
     }
 }   //end of class study group (without gpa comparison logic)                                                                                                                      
-                                                                                                                                     //ADDED SOME ATTRIBUTES
+                                                                                                                                     
 class Student extends User{
     private static final int MAX_COURSES = 10;  
     //attributes
+    private String major;//added String major for exam seating (e.g BESE, BSCS etc)
     private Course[] enrolledCourses = new Course[MAX_COURSES];   //max course limit is 10
     private Attendance[] attendanceRecords = new Attendance[MAX_COURSES];
     private Assignment[] assignments = new Assignment[50];//maximum limit of assignments 50
@@ -335,12 +348,20 @@ class Student extends User{
     public Student(int id,String name,String email,String password)throws InvalidPasswordException{
         super(id,name,email,password);
     }
+    //getters
     //getter for enrolled courses  
-    public Course[] getEnrolledCourses(){                                                  //added getter to use in study group finder
+    public Course[] getEnrolledCourses(){                                                  
+    //added getter to use in study group finder
         return enrolledCourses;
+    }
+    //added getter for major
+    public String getMajor(){                                                  
+    //added getter to use in study group finder
+        return major;
     }
     
     //methods
+    //choose major(switch)
     //enroll course
     public void enrollCourse(Course c) throws CourseCapacityException {
         if (courseCount >= MAX_COURSES) {
@@ -467,17 +488,15 @@ class Student extends User{
 }//end of class student
     
 
-class Room implements Displayable{ 
+class Room {
     private int roomNumber;
     private int capacity;
-    private String maintenanceNote; // added to report maintenance issues
-    //constructor
+
     public Room(int roomNumber, int capacity){
         this.roomNumber = roomNumber;
         this.capacity = capacity;
-        this.maintenanceNote = ""; // default no maintenance issues
     }
-    //getters
+
     int getRoomNumber(){
         return roomNumber;
     }
@@ -485,24 +504,7 @@ class Room implements Displayable{
     int getCapacity(){
         return capacity;
     }
-    String getMaintenanceNote(){
-        return maintenanceNote;
-    }
-    //methods
-    void reportMaintenanceIssue(String note){
-        this.maintenanceNote = note;
-        System.out.println("Maintenance issue reported for Room " + roomNumber + ": " + note);
-    }
-    public boolean hasMaintenanceIssue(){   //no issue if the note is empty
-        return !maintenanceNote.isEmpty();
-    }
-    @Override
-    public void displayInfo(){
-        System.out.println("Room " + roomNumber + " (Capacity: " + capacity + ")");
-        if (hasMaintenanceIssue()) {
-            System.out.println("  Maintenance Issue: " + getMaintenanceNote());
-        }
-    }
+}
 
 //class for time
 class Time{
@@ -523,7 +525,7 @@ class Time{
     
     //getter setters
     void setHour(int hour){
-        if(hour<=23 && hour>=0) //corrected the condition to allow 0-23 hours
+        if(hour<=24 && hour>0)
             this.hour=hour;
         else{
             System.out.println("Invalid value entered!\nHour set to 00.");
@@ -531,7 +533,7 @@ class Time{
     }
     
     void setMinute(int minute){
-        if(minute<60 && minute>=0) //corrected the condition to allow 0-59 minutes
+        if(minute<=60 && minute>0)
             this.minute=minute;
         else{
             System.out.println("Invalid value entered!\nMinute set to 00.");
@@ -544,7 +546,8 @@ class Time{
     int toMinutes(){
         return (hour * 60) + minute;
     }
-}//end of class time
+
+}
 
 class TimeSlot {
     private String day;
@@ -559,10 +562,25 @@ class TimeSlot {
 }
     //added getter setters and validations
     void setDay(int choice){
-        String[] days = {"Monday","Tuesday","Wednesday","Thursday","Friday"};   //using array to store days
-        System.out.println("Enter\n1 for Monday\n2 for Tuesday\n3 for Wednesday\n4 for Thursday\n5 for Friday");
-        if (choice >= 1 && choice <= 5) {
-            day = days[choice - 1];
+        //System.out.println("Enter\n1 for Monday\n2 for Tuesday\n3 for Wednesday\n4 for Thursday\n5 for Friday");
+        if(choice<6 && choice>0){
+            switch (choice){
+                case 1:
+                    day="Monday";
+                    break;
+                case 2:
+                    day="Tuesday";
+                    break;
+                case 3:
+                    day="Wednesday";
+                    break;
+                case 4:
+                    day="Thursday";
+                    break;
+                case 5:
+                    day="Friday";
+                    break;
+            }            
         } 
         else{
             System.out.println("Invalid number entered! day set to Monday.");
@@ -590,8 +608,12 @@ class TimeSlot {
     }
 
     boolean overlaps(TimeSlot other){
-        //checking null pointer exception and day mismatch before time comparison
-        if(other == null || !day.equals(other.day) || startTime == null || endTime == null || other.startTime == null || other.endTime == null){
+        //checking null pointer exception
+        if(other == null){
+            return false;
+        }
+         //Checking for the same day 
+        if(!day.equals(other.day)){
             return false;
         }
         int thisStart = startTime.toMinutes();
@@ -608,7 +630,7 @@ class TimeSlot {
         // If BOTH of these are false, then they MUST overlap
         return !(startsAfterThisEnds || endsBeforeThisStarts);
     }
-}//end of class timeslot
+}
 
 class Batch {
     private String className;
@@ -806,14 +828,127 @@ class ScheduledClass {  //to store output of timetable generator.
     char getSection(){
         return section;
     }
-}
+} 
 
-class Timetable {   //Stores all scheduled classes.
-
+class Timetable implements Displayable{   //Stores all scheduled classes.
+    //attributes
     private ScheduledClass[] schedule;
     private int totalEntries;
+    private static final int maxEntries=100;
+    
+    //constructor
+    public Timetable() {
+        schedule = new ScheduledClass[maxEntries];
+        totalEntries = 0;
+    }
+    
+    //getters
+    public ScheduledClass[] getSchedule(){ 
+        return schedule; 
+    }
+    public int getTotalEntries(){
+        return totalEntries; 
+    }
+    
+    // add a class if no room or faculty clash
+    public void addClass(ScheduledClass sc) throws ScheduleConflictException {
+        for (int i = 0; i < totalEntries; i++) {
+            ScheduledClass existing = schedule[i];//checks all previously added scheduledClasses in array
 
-}
+            // faculty clash
+            if (existing.getTeacher().getId() == sc.getTeacher().getId() &&
+                existing.getSlot().overlaps(sc.getSlot()))//checks for overlap of timslot and teacher 
+            {
+                throw new ScheduleConflictException(
+                    "Faculty clash: " + sc.getTeacher().getName() +
+                    " is already scheduled at this time.");
+            }
+
+            // room clash
+            if (existing.getRoom().getRoomNumber() ==
+                sc.getRoom().getRoomNumber() &&
+                existing.getSlot().overlaps(sc.getSlot()))//checks for overlap of timslot and classroom  
+            {
+                throw new ScheduleConflictException(
+                    "Room clash: Room " + sc.getRoom().getRoomNumber() +
+                    " is already in use at this time.");
+            }
+        }
+        schedule[totalEntries++] = sc; //stores class in array if no clashes occur
+    }
+    @Override
+    public void displayInfo() {
+        System.out.println("\n============================ TIMETABLE ============================");
+        System.out.printf("%-25s  %-15s  %-10s  %-10s  %-6s  %-5s  %s%n",
+            "Course","Faculty","Day","Start","End","Room","Sec");//left aligned
+        System.out.println("─".repeat(85));//creats horizontal line
+        for (int i = 0; i < totalEntries; i++)//repeated loop for each scheduled class 
+        {
+            ScheduledClass sc = schedule[i];
+            System.out.printf("%-25s  %-15s  %-10s  %-10s  %-6s  %-5d  %c%n",
+                sc.getCourse().getCourseName(),//course name
+                sc.getTeacher().getName(),//teacher name
+                sc.getSlot().getDay(),//day
+                sc.getSlot().getStartTime().getTime(),//class starting time
+                sc.getSlot().getEndTime().getTime(),//class starting time
+                sc.getRoom().getRoomNumber(),//room number
+                sc.getSection());//character section (A,B etc)
+        }
+    }
+}//end of timetable class
+
+//added exam seating class
+//checks if space is enough for course exam conduction an
+class ExamSeating{
+    //attributes
+    private Course course;
+    private Room[] rooms;//array of rooms alloted for exam
+    private Student[] students;//array of students giving exam per course
+    private int studentCount;
+
+    //constructor
+    public ExamSeating(Course course, Room[] rooms,
+                       Student[] students, int studentCount) {
+        this.course = course;
+        this.rooms = rooms;
+        this.students = students;
+        this.studentCount = studentCount;
+    }
+
+    //counts the space available for students, and gives exception if no. of students exceeds space also fills students according to the array provided
+    public void generateSeatingPlan() throws RoomCapacityException {
+        int totalCapacity = 0;
+        for (Room r : rooms) {
+            if (r != null) 
+                totalCapacity += (r.getCapacity())/2;//in exams every alternate row is left empty thereby reducing room capacity to half
+        }
+
+        if (totalCapacity < studentCount) {
+            throw new RoomCapacityException(
+                "Not enough room capacity for exam: " + course.getCourseName());
+        }
+        //prints seating plan
+        System.out.println("\n===== Exam Seating Plan – " + course.getCourseName() + " =====");
+        int studentIndex = 0;
+        for (int ri = 0; ri < rooms.length && studentIndex < studentCount; ri++) //stops if either students are completed or rooms are filled
+        {
+            if (rooms[ri] == null) continue;//skips the iteration for empty room
+            System.out.println("Room " + rooms[ri].getRoomNumber() +
+                               " (capacity " + (rooms[ri].getCapacity())/2 + "):");//prints room number and capacity
+            int seat = 1;//starts from 1 for each room
+            while (seat <= (rooms[ri].getCapacity())/2 && studentIndex < studentCount)//while the room capacity is not reached or students are not completely filled
+            {
+                System.out.printf("   Seat %2d – %s (ID: %d)%n",
+                    seat, students[studentIndex].getMajor(),
+                    students[studentIndex].getId());//needs batch number
+                
+                studentIndex++;//increments index to next student
+                seat++; //increments seat to next seat
+            }//end of while
+        }//end of for
+    }//end of method
+
+}//end of class Exam Seating
 
 //added basic admin module
 class Admin extends User {
