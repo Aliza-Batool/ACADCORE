@@ -8,7 +8,7 @@ package com.km.kmproject1;
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
-
+import java.util.Date;
 //  EXCEPTIONS
 //added invalid password exception
 class InvalidPasswordException extends Exception { //inherits in built exception class
@@ -334,7 +334,7 @@ class StudyGroup
 class Student extends User{
     private static final int MAX_COURSES = 10;  
     //attributes
-    private String major;//added String major for exam seating (e.g BESE, BSCS etc)
+    private Class classOfStudent;//added class and removed string major(it can be retreived from class)
     private Course[] enrolledCourses = new Course[MAX_COURSES];   //max course limit is 10
     private Attendance[] attendanceRecords = new Attendance[MAX_COURSES];
     private Assignment[] assignments = new Assignment[50];//maximum limit of assignments 50
@@ -345,17 +345,36 @@ class Student extends User{
     private int semester; //added semester attribute for profile management
     
     //constructor might throw invalid password exception
-    public Student(int id,String name,String email,String password)throws InvalidPasswordException{
+    public Student(int id,String name,String email,String password,Class classOfStudent)throws InvalidPasswordException{
         super(id,name,email,password);
+        this.classOfStudent=classOfStudent;
     }
     //getter for enrolled courses  
-    public Course[] getEnrolledCourses(){                                                  //added getter to use in study group finder
+    public Course[] getEnrolledCourses(){                                                  
+    //added getter to use in study group finder
         return enrolledCourses;
     }
     //added getter for major
     public String getMajor(){                                                  
     //added getter to use in study group finder
-        return major;
+        return classOfStudent.getMajor();
+    }
+    //added getter for batch number
+    public int getBatchNo() {
+        return classOfStudent.getBatchNo();
+    }
+    
+    //added getter for section
+    public char getSection() {
+        return classOfStudent.getSection();
+    }
+    //added getter for class
+    public Class getClassOfStudent() {
+        return classOfStudent;
+    }
+    //setter for Class used in remove student from class method
+    public void setClass(Class classOfStudent){
+        this.classOfStudent=classOfStudent;
     }
     
     //methods
@@ -468,7 +487,13 @@ class Student extends User{
     @Override
     public void displayInfo(){
         super.displayInfo();
-        System.out.println("Enrolled Courses: "+courseCount);
+        //modified display to show batch, major, and section from the class
+        if (classOfStudent != null) {
+            System.out.println("Batch: " + classOfStudent.getBatchNo() + 
+                             " | Major: " + classOfStudent.getMajor() + 
+                             " | Section: " + classOfStudent.getSection());
+        }
+        System.out.println("Enrolled Courses: " + courseCount);
     }
     //getters 
     public int getCourseCount() { 
@@ -663,18 +688,133 @@ class TimeSlot {
     }
 }//end of class timeslot
 
-class Batch {
-    private String className;
+class Class {
+    private static final int maxStudents = 50; // max students per class
+    private int batchNo;
+    private String major;
     private int studentCount;
-    private Course[] courses;
-}
+    private char section;
+    private Student[] students = new Student[maxStudents];
+    private Faculty[] facultyAssigned=new Faculty[12];//max limit of assigned faculty members 
+    
+    // Constructor
+    public Class(int batchNo, String major, char section) throws IllegalArgumentException {
+        // Validate batch number (must be less than 1000)
+        if (batchNo >= 1000 || batchNo < 0) {
+            throw new IllegalArgumentException("Batch number must be less than 1000.");
+        }
+        
+        this.batchNo = batchNo;
+        this.major = major;
+        this.section = section;
+        this.studentCount = 0;
+    }
+    
+    // Getters
+    public int getBatchNo() {
+        return batchNo;
+    }
+    
+    public String getMajor() {
+        return major;
+    }
+    
+    public char getSection() {
+        return section;
+    }
+    
+    public int getStudentCount() {
+        return studentCount;
+    }
+    
+    public Student[] getStudents() {
+        return students;
+    }
+    
+    // Add a student to the class
+    // Only adds if the student's major matches this class's major
+    public boolean addStudent(Student student) throws IllegalArgumentException {
+        // Check if student's major matches this class's major
+        if (!student.getMajor().equalsIgnoreCase(major)) {
+            System.out.println("Cannot add student: Student's major (" + student.getMajor() 
+                + ") does not match class major (" + major + ").");
+            return false;
+        }
+        
+        // Check if class is full
+        if (studentCount >= maxStudents) {
+            System.out.println("Cannot add student: Class is full.");
+            return false;
+        }
+        
+        // Check if student is already in the class
+        for (int i = 0; i < studentCount; i++) {
+            if (students[i].getId() == student.getId()) {
+                System.out.println("Cannot add student: Student already exists in this class.");
+                return false;
+            }
+        }
+        
+        // Set the class for the student
+        student.setClass(this);
+        
+        // Add student to the class
+        students[studentCount++] = student;
+        System.out.println("Student " + student.getName() + " added to Class " + 
+            batchNo + " " + major + " " + section);
+        return true;
+    }//end of add student method
+    
+    // Remove a student from the class
+    public boolean removeStudent(int studentId) {
+        for (int i = 0; i < studentCount; i++) {
+            if (students[i].getId() == studentId) {
+                // Clear the class reference from student
+                students[i].setClass(null);
+                
+                // Shift students to fill the gap
+                for (int j = i; j < studentCount - 1; j++) {
+                    students[j] = students[j + 1];
+                }
+                //sets last empty space to null after shifting 
+                students[--studentCount] = null;
+                System.out.println("Student removed from class.");
+                return true;
+            }
+        }
+        //if student not found
+        System.out.println("Student not found in this class.");
+        return false;
+    }
+    
+    // Display class information
+    public void displayClassInfo() {
+        System.out.println("\n======== Class Information ========");
+        System.out.println("Batch Number: " + batchNo);
+        System.out.println("Major: " + major);
+        System.out.println("Section: " + section);
+        System.out.println("Total Students: " + studentCount + "/" + maxStudents);
+        System.out.println("──────────────────────────────────");
+        System.out.println("Students in Class:");
+        
+        if (studentCount == 0) {
+            System.out.println("  No students enrolled in this class yet.");
+            return;
+        }
+        
+        for (int i = 0; i < studentCount; i++) {
+            System.out.println("  " + (i + 1) + ". " + students[i].getName() + 
+                " (ID: " + students[i].getId() + ")");
+        }
+    }
+}//end of class Class
 
 //added grading deadline class for deadline reminder feature for faculty
  class GradingDeadline {
     Course course;
     String taskTitle;
-    String deadline;
-    public GradingDeadline(Course course, String taskTitle, String deadline) {
+    Time deadline;
+    public GradingDeadline(Course course, String taskTitle, Time deadline) {
         this.course = course;
         this.taskTitle = taskTitle;
         this.deadline = deadline;
@@ -687,7 +827,7 @@ class Batch {
         return taskTitle;
     }
     public String getDeadline() {
-        return deadline;
+        return deadline.getTime();
     }
  }//end of class grading deadline
 
@@ -705,7 +845,7 @@ class DeadlineManager {
     }
 
     //method to set a grading deadline reminder
-    public void setDeadline(String courseName, String taskName, String deadline) {
+    public void setDeadline(String courseName, String taskName, Time deadline) {
         // Check if faculty is assigned to this course
         Course course = faculty.getAssignedCourse(courseName); // added helper method in Faculty
 
@@ -727,11 +867,11 @@ class DeadlineManager {
         }
          //if all validations are passed then store the deadline reminder
         gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
-        System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
+        System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline.getTime());
 
     }//end of set deadline method
 
-    //method to mark a deadline as done and remove it from the list
+    //method to mark a deadline as "done" and remove it from the list
     public void markDone(String courseName, String taskName) {
         for (int i = 0; i < deadlineCount; i++) {
             if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
@@ -805,7 +945,7 @@ class Faculty extends User {
     boolean withinAvailable = false;
     for (int i = 0; i < slotCount; i++) {
         if (availableSlots[i] != null && availableSlots[i].overlaps(slot)){
-            withinAvailable = true; // overlap with available slot means they are available for this time
+            withinAvailable = true; // overlap with available slot means faculty member are available for this time
             break;
         }
     }
