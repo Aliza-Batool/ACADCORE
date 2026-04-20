@@ -1,5 +1,5 @@
 
-package com.mycompany.labs;
+package com.km.kmproject1;
 
 /**
  *
@@ -8,6 +8,7 @@ package com.mycompany.labs;
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
+
 //  EXCEPTIONS
 //added invalid password exception
 class InvalidPasswordException extends Exception { //inherits in built exception class
@@ -33,12 +34,11 @@ class RoomCapacityException extends Exception{
     }
 }
 
-// INTERFACE
 //added interface 
 interface Displayable {
     void displayInfo();
 }
-class User implements Displayable{
+abstract class User implements Displayable{ //made user class abstract as it should not be instantiated directly
     //attributes
     private int id;
     private String name;
@@ -330,7 +330,7 @@ class StudyGroup
         }
     }
 }   //end of class study group (without gpa comparison logic)                                                                                                                      
-                                                                                                                                     
+                                                                                                                                     //ADDED SOME ATTRIBUTES
 class Student extends User{
     private static final int MAX_COURSES = 10;  
     //attributes
@@ -348,10 +348,8 @@ class Student extends User{
     public Student(int id,String name,String email,String password)throws InvalidPasswordException{
         super(id,name,email,password);
     }
-    //getters
     //getter for enrolled courses  
-    public Course[] getEnrolledCourses(){                                                  
-    //added getter to use in study group finder
+    public Course[] getEnrolledCourses(){                                                  //added getter to use in study group finder
         return enrolledCourses;
     }
     //added getter for major
@@ -361,7 +359,6 @@ class Student extends User{
     }
     
     //methods
-    //choose major(switch)
     //enroll course
     public void enrollCourse(Course c) throws CourseCapacityException {
         if (courseCount >= MAX_COURSES) {
@@ -389,8 +386,7 @@ class Student extends User{
     //add an assignment
     public void addAssignment(Assignment a) {
         if (assignmentCount < assignments.length) {
-            assignments[assignmentCount++] = a;//stores assignment on the first available index
-            assignmentCount++;//increments no. of assignments
+            assignments[assignmentCount++] = a;//stores assignment on the first available index and then increments the count for next assignment
         }
     }
     
@@ -488,15 +484,19 @@ class Student extends User{
 }//end of class student
     
 
-class Room {
+class Room implements Displayable{ 
     private int roomNumber;
     private int capacity;
-
+    private String maintenanceNote; // added to report maintenance issues
+    private TimeSlot[] bookedSlots = new TimeSlot[50]; // to keep track of booked slots for clash detection
+    private int bookedCount = 0;
+    //constructor
     public Room(int roomNumber, int capacity){
         this.roomNumber = roomNumber;
         this.capacity = capacity;
+        this.maintenanceNote = ""; // default no maintenance issues
     }
-
+    //getters
     int getRoomNumber(){
         return roomNumber;
     }
@@ -504,7 +504,58 @@ class Room {
     int getCapacity(){
         return capacity;
     }
-}
+    String getMaintenanceNote(){
+        return maintenanceNote;
+    }
+    //methods
+    void reportMaintenanceIssue(String note){
+        this.maintenanceNote = note;
+        System.out.println("Maintenance issue reported for Room " + roomNumber + ": " + note);
+    }
+    public boolean hasMaintenanceIssue(){   //no issue if the note is empty
+        return !maintenanceNote.isEmpty();
+    }
+
+    //check room availability
+    public boolean isAvailable(TimeSlot slot) {
+
+        // 1. Capacity check
+        if (bookedCount >= bookedSlots.length) {
+            System.out.println("Room " + roomNumber + " has no remaining booking capacity.");
+            return false;
+        }
+
+        // 2. Maintenance check
+        if (hasMaintenanceIssue()) {
+            System.out.println("Room " + roomNumber + " is under maintenance: " + maintenanceNote);
+            return false;
+        }
+
+        // 3. Already booked at this time
+        for (int i = 0; i < bookedCount; i++) {
+            if (bookedSlots[i] != null && bookedSlots[i].overlaps(slot))
+                return false;
+        }
+        return true;
+    }
+    //book the room for a given timeslot if available
+    public boolean bookRoom(TimeSlot slot) {
+        if (!isAvailable(slot)) {
+            return false;
+        }
+        bookedSlots[bookedCount++] = slot;
+        System.out.println("Room " + roomNumber + " booked for " + slot.getDay() + " " + slot.getStartTime().getTime() + "-" + slot.getEndTime().getTime());
+        return true;
+    }
+
+    @Override
+    public void displayInfo(){
+        System.out.println("Room " + roomNumber + " (Capacity: " + capacity + ")");
+        if (hasMaintenanceIssue()) {
+            System.out.println("  Maintenance Issue: " + getMaintenanceNote());
+        }
+    }
+}//end of class room
 
 //class for time
 class Time{
@@ -525,7 +576,7 @@ class Time{
     
     //getter setters
     void setHour(int hour){
-        if(hour<=24 && hour>0)
+        if(hour<=23 && hour>=0) //corrected the condition to allow 0-23 hours
             this.hour=hour;
         else{
             System.out.println("Invalid value entered!\nHour set to 00.");
@@ -533,7 +584,7 @@ class Time{
     }
     
     void setMinute(int minute){
-        if(minute<=60 && minute>0)
+        if(minute<60 && minute>=0) //corrected the condition to allow 0-59 minutes
             this.minute=minute;
         else{
             System.out.println("Invalid value entered!\nMinute set to 00.");
@@ -546,8 +597,7 @@ class Time{
     int toMinutes(){
         return (hour * 60) + minute;
     }
-
-}
+}//end of class time
 
 class TimeSlot {
     private String day;
@@ -562,25 +612,10 @@ class TimeSlot {
 }
     //added getter setters and validations
     void setDay(int choice){
-        //System.out.println("Enter\n1 for Monday\n2 for Tuesday\n3 for Wednesday\n4 for Thursday\n5 for Friday");
-        if(choice<6 && choice>0){
-            switch (choice){
-                case 1:
-                    day="Monday";
-                    break;
-                case 2:
-                    day="Tuesday";
-                    break;
-                case 3:
-                    day="Wednesday";
-                    break;
-                case 4:
-                    day="Thursday";
-                    break;
-                case 5:
-                    day="Friday";
-                    break;
-            }            
+        String[] days = {"Monday","Tuesday","Wednesday","Thursday","Friday"};   //using array to store days
+        System.out.println("Enter\n1 for Monday\n2 for Tuesday\n3 for Wednesday\n4 for Thursday\n5 for Friday");
+        if (choice >= 1 && choice <= 5) {
+            day = days[choice - 1];
         } 
         else{
             System.out.println("Invalid number entered! day set to Monday.");
@@ -608,12 +643,8 @@ class TimeSlot {
     }
 
     boolean overlaps(TimeSlot other){
-        //checking null pointer exception
-        if(other == null){
-            return false;
-        }
-         //Checking for the same day 
-        if(!day.equals(other.day)){
+        //checking null pointer exception and day mismatch before time comparison
+        if(other == null || !day.equals(other.day) || startTime == null || endTime == null || other.startTime == null || other.endTime == null){
             return false;
         }
         int thisStart = startTime.toMinutes();
@@ -630,7 +661,7 @@ class TimeSlot {
         // If BOTH of these are false, then they MUST overlap
         return !(startsAfterThisEnds || endsBeforeThisStarts);
     }
-}
+}//end of class timeslot
 
 class Batch {
     private String className;
@@ -660,6 +691,74 @@ class Batch {
     }
  }//end of class grading deadline
 
+//added deadline manager class to manage grading deadlines for faculty
+class DeadlineManager {
+    private GradingDeadline[] gradingDeadlines;
+    private int deadlineCount = 0;
+    private int capacity;
+    private Faculty faculty; // reference back to faculty for name and course validation
+
+    public DeadlineManager(Faculty faculty, int capacity) {
+        this.faculty = faculty;
+        this.capacity = capacity;
+        this.gradingDeadlines = new GradingDeadline[capacity];
+    }
+
+    //method to set a grading deadline reminder
+    public void setDeadline(String courseName, String taskName, String deadline) {
+        // Check if faculty is assigned to this course
+        Course course = faculty.getAssignedCourse(courseName); // added helper method in Faculty
+
+        if (course == null) {   // not assigned to this course
+            System.out.println("Failed: " + faculty.getName() + " is not assigned to '" + courseName + "'.");
+            return;
+        }
+        // Check duplicate
+        for (int i = 0; i < deadlineCount; i++) {
+            if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
+                System.out.println("Failed: Deadline for '" + taskName + "' in '" + courseName + "' already exists.");
+                return;
+            }
+        }
+        // Check capacity
+        if (deadlineCount >= capacity) {
+            System.out.println("Failed: No more deadline slots available.");
+            return;
+        }
+         //if all validations are passed then store the deadline reminder
+        gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
+        System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
+
+    }//end of set deadline method
+
+    //method to mark a deadline as done and remove it from the list
+    public void markDone(String courseName, String taskName) {
+        for (int i = 0; i < deadlineCount; i++) {
+            if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
+                // Shift left to fill the gap
+                for (int j = i; j < deadlineCount - 1; j++)
+                    gradingDeadlines[j] = gradingDeadlines[j + 1];
+
+                gradingDeadlines[--deadlineCount] = null;  // clear last slot
+                System.out.println("Marked done: [" + courseName + "] " + taskName);
+                return;
+            }
+        }
+        System.out.println("Failed: No deadline found for '" + taskName + "' in '" + courseName + "'.");
+    }
+    //method to show pending deadlines
+    public void showPending() {
+        if (deadlineCount == 0) {
+            System.out.println("No pending deadlines for " + faculty.getName() + ".");
+            return;
+        }
+        System.out.println("Pending Deadlines for " + faculty.getName() + ":");
+        for (int i = 0; i < deadlineCount; i++) {
+            System.out.println("  [" + gradingDeadlines[i].getCourse().getCourseName() + "] "+ gradingDeadlines[i].getTaskTitle() + " → Due: "+ gradingDeadlines[i].getDeadline());
+        }
+    }//end of show pending deadlines method
+}//end of class deadline manager
+
 class Faculty extends User {
     private static final int MAX_COURSES = 6; //added max course limit for faculty
     private static final int MAX_SLOTS = 20; //added max slot limit for faculty
@@ -670,11 +769,11 @@ class Faculty extends User {
     private int courseCount = 0;
     private int slotCount = 0;
     private int bookedCount = 0;
-    private GradingDeadline[] gradingDeadlines = new GradingDeadline[MAX_COURSES*5]; // 5 tasks per course max
-    private int deadlineCount = 0;
+    private DeadlineManager deadlineManager; // replaces all deadline fields
     //constructor
     public Faculty(int id, String name, String email, String password) throws InvalidPasswordException{
         super(id,name,email,password);
+        deadlineManager = new DeadlineManager(this,MAX_COURSES * 5); // assuming max 5 deadlines per course(at a time) and passing reference of faculty to deadline manager for validation
     }
     //methods
 
@@ -697,7 +796,12 @@ class Faculty extends User {
 
     //check if faculty is available for a given timeslot
    public boolean isAvailable(TimeSlot slot) {
-    // first check if the slot is within their available slots
+    // 1: if all slots are booked then it cannot be booked anymore
+    if (bookedCount >= bookedSlots.length) {
+        System.out.println("Booking failed: " + getName() + " has no remaining booking capacity.");
+        return false;
+        }
+    // 2:check if the slot is within their available slots
     boolean withinAvailable = false;
     for (int i = 0; i < slotCount; i++) {
         if (availableSlots[i] != null && availableSlots[i].overlaps(slot)){
@@ -705,95 +809,55 @@ class Faculty extends User {
             break;
         }
     }
+
     if (!withinAvailable){
         System.out.println(getName() + " is not available for slot: " + slot.getDay() + " " + slot.getStartTime().getTime() + "-" + slot.getEndTime().getTime());
         return false;  // no available slot covers this time
         }
-    // check if it overlaps with any already booked slot
+
+    // 3:check if it overlaps with any already booked slot
     for (int i = 0; i < bookedCount; i++) {
         if (bookedSlots[i] != null && bookedSlots[i].overlaps(slot))
             return false;
         }
+        
         return true;
-    }
+
+    }//end of isAvailable method
 
     //book a slot for a class
-    public void bookSlot(TimeSlot slot){
-        //check if the slot is available before booking
-        if(!isAvailable(slot)){
-            System.out.println("Booking failed: slot unavailable or already booked for " + getName());
-            return;
-        }
-        //if all slots are booked then it cannot be booked anymore
-        if (bookedCount >= bookedSlots.length) {
-            System.out.println("Booking failed: " + getName() + " has no remaining booking capacity.");
-            return;
-        }
-        //if available and booking capacity is not full then book the slot
+    public boolean bookSlot(TimeSlot slot){
+        //if available then book the slot by adding it to booked slots array
+         if (!isAvailable(slot)) {  
+        return false;
+    }
         bookedSlots[bookedCount++] = slot;
         System.out.println("Booking successful: " + getName() + " booked for " + slot.getDay() + " " + slot.getStartTime().getTime() + "-" + slot.getEndTime().getTime());
+        return true;
     }//end of book slot method
 
-     //deadline reminder for grading
-    public void setGradingDeadline(String courseName, String taskName, String deadline) {
-        // Check if the faculty is even assigned to this course
-        boolean courseFound = false;
-        Course course = null;
+    // DeadlineManager needs this to validate course assignment(to find if faculty is assigned to the course)
+    public Course getAssignedCourse(String courseName) {
         for (int i = 0; i < courseCount; i++) {
-            if (assignedCourses[i].getCourseName().equalsIgnoreCase(courseName)) {
-            courseFound = true;
-            course = assignedCourses[i];    //to find course from course name given by user
-            break;
+            if (assignedCourses[i].getCourseName().equalsIgnoreCase(courseName))
+                return assignedCourses[i];
         }
-    }
-    if (!courseFound) {
-        System.out.println("Failed: " + getName() + " is not assigned to course '" + courseName + "'.");
-        return;
-    }
-    // Check for duplicate (same course + same task)
-    for (int i = 0; i < deadlineCount; i++) {
-        if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
-            System.out.println("Failed: Deadline Reminder for '" + taskName + "' in '" + courseName + "' already exists.");
-            return;
-        }
-    }
-    // Check capacity
-    if (deadlineCount >= gradingDeadlines.length) {
-        System.out.println("Failed: No more deadline slots available.");
-        return;
-    }
-    //if all validations are passed then store the deadline reminder
-    gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
-    System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
-    }//end of set grading deadline method
-    //method to mark deadline as done and remove it from the list
-    public void markDeadlineDone(String courseName, String taskName) {
-    for (int i = 0; i < deadlineCount; i++) {
-        //finding the deadline reminder based on course name and task name given by user
-        if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
+        return null; // not found
+    }//end of get assigned course method
 
-            // Shift left to fill the gap
-            for (int j = i; j < deadlineCount - 1; j++)
-                gradingDeadlines[j] = gradingDeadlines[j + 1];
-
-            gradingDeadlines[--deadlineCount] = null; // clear last slot
-            System.out.println("Marked done and removed: [" + courseName + "] " + taskName);
-            return;
-        }
+    public void setGradingDeadline(String course, String task, String deadline) {
+        deadlineManager.setDeadline(course, task, deadline);
     }
-    System.out.println("Failed: No deadline found for '" + taskName + "' in '" + courseName + "'.");
-}
+    public void markDeadlineDone(String course, String task) {
+        deadlineManager.markDone(course, task);
+    }
     public void getPendingDeadlines() {
-    if (deadlineCount == 0) {
-        System.out.println("No pending deadlines for " + getName() + ".");
-        return;
+        deadlineManager.showPending();
     }
-    System.out.println("Pending Deadlines for " + getName() + ":");
-    for (int i = 0; i < deadlineCount; i++) {
-        System.out.println("  [" + gradingDeadlines[i].getCourse().getCourseName() + "] "+ gradingDeadlines[i].getTaskTitle() + " → Due: "+ gradingDeadlines[i].getDeadline());
-    }
-}
-}//end of class faculty(not complete)        
+
+  
+}//end of class faculty
+
 class ScheduledClass {  //to store output of timetable generator.
     private Course course;
     private Faculty teacher;
@@ -828,7 +892,7 @@ class ScheduledClass {  //to store output of timetable generator.
     char getSection(){
         return section;
     }
-} 
+}
 
 class Timetable implements Displayable{   //Stores all scheduled classes.
     //attributes
@@ -852,30 +916,23 @@ class Timetable implements Displayable{   //Stores all scheduled classes.
     
     // add a class if no room or faculty clash
     public void addClass(ScheduledClass sc) throws ScheduleConflictException {
-        for (int i = 0; i < totalEntries; i++) {
-            ScheduledClass existing = schedule[i];//checks all previously added scheduledClasses in array
-
-            // faculty clash
-            if (existing.getTeacher().getId() == sc.getTeacher().getId() &&
-                existing.getSlot().overlaps(sc.getSlot()))//checks for overlap of timslot and teacher 
-            {
-                throw new ScheduleConflictException(
-                    "Faculty clash: " + sc.getTeacher().getName() +
-                    " is already scheduled at this time.");
+        // 1. Check faculty availibility
+        if (!sc.getTeacher().isAvailable(sc.getSlot())) {
+            throw new ScheduleConflictException("Faculty unavailable or already booked: " + sc.getTeacher().getName());
             }
-
-            // room clash
-            if (existing.getRoom().getRoomNumber() ==
-                sc.getRoom().getRoomNumber() &&
-                existing.getSlot().overlaps(sc.getSlot()))//checks for overlap of timslot and classroom  
-            {
-                throw new ScheduleConflictException(
-                    "Room clash: Room " + sc.getRoom().getRoomNumber() +
-                    " is already in use at this time.");
-            }
+        // 2. Check room availability
+        if (!sc.getRoom().isAvailable(sc.getSlot())) {
+            throw new ScheduleConflictException("Room unavailable or already booked: Room " + sc.getRoom().getRoomNumber());
         }
-        schedule[totalEntries++] = sc; //stores class in array if no clashes occur
-    }
+
+        // 3. Both confirmed available, so book them
+        sc.getTeacher().bookSlot(sc.getSlot());
+        sc.getRoom().bookRoom(sc.getSlot());
+
+        // 4. Add to schedule
+        schedule[totalEntries++] = sc;
+    }//end of add class method
+    
     @Override
     public void displayInfo() {
         System.out.println("\n============================ TIMETABLE ============================");
