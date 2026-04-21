@@ -8,7 +8,10 @@ package com.km.kmproject1;
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
-import java.util.Date;
+
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+
 //  EXCEPTIONS
 //added invalid password exception
 class InvalidPasswordException extends Exception { //inherits in built exception class
@@ -107,20 +110,20 @@ abstract class User implements Displayable{ //made user class abstract as it sho
 class Course implements Displayable{
     private int courseCode;
     private String courseName;
-    private String facultyAssigned;
+    private Faculty facultyAssigned; //changed to Faculty reference for better integration with faculty class
     private int creditHours;//added credithours for workload calculation
     
-    //constructor 
-    public Course(int courseCode, String courseName, String facultyAssigned,int creditHours){
+    //constructor  without faculty assigned
+    public Course(int courseCode, String courseName,int creditHours){
         this.courseCode=courseCode;
         this.courseName=courseName;
-        this.facultyAssigned=facultyAssigned;
+        this.facultyAssigned=null; // initially no faculty assigned
         this.creditHours= creditHours;      
     }
-    public Course(int courseCode, String courseName, String facultyAssigned)//constructor without credithours (Overloading concept)
-    {
+    //constructor with default credit hours
+    public Course(int courseCode, String courseName){
         //using "this" as the first line of the constructor
-        this(courseCode, courseName, facultyAssigned, 3); // default 3 credit hours      
+        this(courseCode, courseName, 3); // default 3 credit hours      
     }
     //getters
     public int getCourseCode(){ 
@@ -129,19 +132,28 @@ class Course implements Displayable{
     public String getCourseName(){ 
         return courseName; 
     }
-    public String getFacultyAssigned(){ 
+    public Faculty getFacultyAssigned(){  //changed return type to Faculty
         return facultyAssigned; 
     }
     public int getCreditHours(){ 
         return creditHours; 
     }
-      
-    @Override
-    public void displayInfo() {
-        System.out.println("Course [" + courseCode + "] " + courseName +
-                           "\nFaculty: " + facultyAssigned +
-                           "\nCredits: " + creditHours);
+
+    //added method which is called when faculty gets assigned to this course(linked both)
+    public void setAssignedFaculty(Faculty f) {
+        this.facultyAssigned = f;
+        System.out.println("Faculty " + f.getName()+ " linked to course: " + courseName);
+    }
+
+    public boolean hasFaculty() {
+        return facultyAssigned != null;
     }  
+
+    @Override
+    //added more details to displayinfo method
+    public void displayInfo() {
+        System.out.println("Course [" + courseCode + "] " + courseName + "\nCredits: " + creditHours+ "\nFaculty: " + (hasFaculty() ? facultyAssigned.getName() : "Not assigned"));
+    } 
 }//end of class Course
 
 class Attendance{
@@ -334,7 +346,7 @@ class StudyGroup
 class Student extends User{
     private static final int MAX_COURSES = 10;  
     //attributes
-    private Class classOfStudent;//added class and removed string major(it can be retreived from class)
+    private AcadClass classOfStudent;//added class and removed string major(it can be retreived from class)
     private Course[] enrolledCourses = new Course[MAX_COURSES];   //max course limit is 10
     private Attendance[] attendanceRecords = new Attendance[MAX_COURSES];
     private Assignment[] assignments = new Assignment[50];//maximum limit of assignments 50
@@ -342,16 +354,16 @@ class Student extends User{
     private int assignmentCount = 0;
     private double gpa; //added gpa attribute for study group finder
     private double cgpa; //added cgpa attribute for study group finder
-    private int semester; //added semester attribute for profile management
     
     //constructor might throw invalid password exception
-    public Student(int id,String name,String email,String password,Class classOfStudent)throws InvalidPasswordException{
+    public Student(int id,String name,String email,String password,AcadClass classOfStudent)throws InvalidPasswordException{
         super(id,name,email,password);
         this.classOfStudent=classOfStudent;
+        classOfStudent.addStudent(this); //automatically adds the student to the class when a student object is created with a class reference
     }
     //getter for enrolled courses  
     public Course[] getEnrolledCourses(){                                                  
-    //added getter to use in study group finder
+        //added getter to use in study group finder
         return enrolledCourses;
     }
     //added getter for major
@@ -359,7 +371,7 @@ class Student extends User{
     //added getter to use in study group finder
         return classOfStudent.getMajor();
     }
-    //added getter for batch number
+     //added getter for batch number
     public int getBatchNo() {
         return classOfStudent.getBatchNo();
     }
@@ -368,15 +380,19 @@ class Student extends User{
     public char getSection() {
         return classOfStudent.getSection();
     }
+    //added getter for semester
+    public int getSemester() {
+        return classOfStudent.getSemester();
+    }
     //added getter for class
-    public Class getClassOfStudent() {
+    public AcadClass getClassOfStudent() {
         return classOfStudent;
     }
-    //setter for Class used in remove student from class method
-    public void setClass(Class classOfStudent){
+    //setter for AcadClass used in remove student from class method
+    public void setClass(AcadClass classOfStudent){
         this.classOfStudent=classOfStudent;
     }
-    
+
     //methods
     //enroll course
     public void enrollCourse(Course c) throws CourseCapacityException {
@@ -467,21 +483,13 @@ class Student extends User{
         if (!found) System.out.println("  No clashes detected.");
     }
     
-    //view personal time schedule
-    public void viewTimetable(ScheduledClass[] schedule, int total) {
-        System.out.println("\n── Timetable for " + getName() + " ──");
-        for (int i = 0; i < total; i++) {
-            if (schedule[i] != null) {
-                ScheduledClass sc = schedule[i];//stores schedule class object for following methods
-                //formated printig of time schedule
-                System.out.printf("  %-25s  %s  %s-%s  Room %d%n",
-                    sc.getCourse().getCourseName(),
-                    sc.getSlot().getDay(),
-                    sc.getSlot().getStartTime().getTime(),
-                    sc.getSlot().getEndTime().getTime(),
-                    sc.getRoom().getRoomNumber());
-            }
+    //view personal time table from class schedule
+    public void viewMyClassSchedule() {
+        if (classOfStudent == null) {
+            System.out.println("No class assigned to " + getName());
+            return;
         }
+        classOfStudent.displayClassSchedule();
     }
     //display info
     @Override
@@ -489,12 +497,11 @@ class Student extends User{
         super.displayInfo();
         //modified display to show batch, major, and section from the class
         if (classOfStudent != null) {
-            System.out.println("Batch: " + classOfStudent.getBatchNo() + 
-                             " | Major: " + classOfStudent.getMajor() + 
-                             " | Section: " + classOfStudent.getSection());
+            System.out.println("Batch: " + classOfStudent.getBatchNo() + " | Major: " + classOfStudent.getMajor() + " | Section: " + classOfStudent.getSection());
         }
         System.out.println("Enrolled Courses: " + courseCount);
     }
+    
     //getters 
     public int getCourseCount() { 
         return courseCount; 
@@ -569,7 +576,7 @@ class Room implements Displayable{
             return false;
         }
         bookedSlots[bookedCount++] = slot;
-        System.out.println("Room " + roomNumber + " booked for " + slot.getDay() + " " + slot.getStartTime().getTime() + "-" + slot.getEndTime().getTime());
+        System.out.println("Room " + roomNumber + " booked for " + slot.getDay() + " " + slot.getStartString() + "-" + slot.getEndString());
         return true;
     }
 
@@ -583,51 +590,12 @@ class Room implements Displayable{
 }//end of class room
 
 //class for time
-class Time{
-    private int hour;
-    private int minute;
-    
-    //constructor 
-    public Time(){
-        hour=0;
-        minute=0;
-    }
-    
-    //constructor
-    public Time(int hour, int minute){
-        this.hour=hour;
-        this.minute=minute;
-    }
-    
-    //getter setters
-    void setHour(int hour){
-        if(hour<=23 && hour>=0) //corrected the condition to allow 0-23 hours
-            this.hour=hour;
-        else{
-            System.out.println("Invalid value entered!\nHour set to 00.");
-        }              
-    }
-    
-    void setMinute(int minute){
-        if(minute<60 && minute>=0) //corrected the condition to allow 0-59 minutes
-            this.minute=minute;
-        else{
-            System.out.println("Invalid value entered!\nMinute set to 00.");
-        } 
-    }
-    String getTime(){
-        return String.format("%02d:%02d", hour,minute);
-    }
-
-    int toMinutes(){
-        return (hour * 60) + minute;
-    }
-}//end of class time
-
+//removed time class
 class TimeSlot {
+    private static final DateTimeFormatter TF = DateTimeFormatter.ofPattern("HH:mm"); //formatter for displaying time in 24-hour format
     private String day;
-    private Time startTime;
-    private Time endTime;
+    private LocalTime startTime;   //using LocalTime for better time handling and validation
+    private LocalTime endTime;
     
     // constructor 
     public TimeSlot(int dayChoice, int sh, int sm, int eh, int em){
@@ -652,61 +620,169 @@ class TimeSlot {
     }    
     
     void setStartTime(int hour, int minute){
-        startTime=new Time(hour, minute);
+        startTime=LocalTime.of(hour, minute);
     }
     
-    Time getStartTime(){
+    LocalTime getStartTime(){
         return startTime;
     }
     
     void setEndTime(int hour, int minute){
-        endTime=new Time(hour, minute);
+        endTime=LocalTime.of(hour, minute);
     }
     
-    Time getEndTime(){
+    LocalTime getEndTime(){
         return endTime;
     }
-
-    boolean overlaps(TimeSlot other){
-        //checking null pointer exception and day mismatch before time comparison
-        if(other == null || !day.equals(other.day) || startTime == null || endTime == null || other.startTime == null || other.endTime == null){
-            return false;
-        }
-        int thisStart = startTime.toMinutes();
-        int thisEnd = endTime.toMinutes();
-        int otherStart = other.startTime.toMinutes();
-        int otherEnd = other.endTime.toMinutes();
-        
-        // Check if the other meeting happens entirely AFTER this one ends
-        boolean startsAfterThisEnds = otherStart >= thisEnd;
-
-        // Check if the other meeting happens entirely BEFORE this one starts
-        boolean endsBeforeThisStarts = otherEnd <= thisStart;
-
-        // If BOTH of these are false, then they MUST overlap
-        return !(startsAfterThisEnds || endsBeforeThisStarts);
+    public String getStartString() {
+        return startTime.format(TF);
     }
+
+    public String getEndString() {
+        return endTime.format(TF);
+    }
+
+    //true if this slot fully contains 'other' (same day, other inside this)
+    //helper to check faculty availibility
+    public boolean contains(TimeSlot other) {
+        if (other == null) return false;
+        if (day == null || other.day == null) return false;
+        if (!day.equals(other.day)) return false;
+        if (startTime == null || endTime == null || other.startTime == null || other.endTime == null) return false;
+        return ( !other.startTime.isBefore(this.startTime) ) && ( !other.endTime.isAfter(this.endTime) );
+    }
+
+
+    //updated overlap method to use LocalTime's built in methods
+   boolean overlaps(TimeSlot other){
+    // basic null checks
+    if(other == null || day == null || other.day == null) return false;
+    // slots on different days do not overlap
+    if(!day.equals(other.day)) return false;
+    
+    if(startTime == null || endTime == null || other.startTime == null || other.endTime == null) return false;
+
+    // overlap rule: start < otherEnd AND end > otherStart
+    return startTime.isBefore(other.endTime) && endTime.isAfter(other.startTime);
+}
 }//end of class timeslot
 
-class Class {
+//added new curriculum class
+// Defines the courses for a given Major + Semester
+class Curriculum implements Displayable {
+
+    private static final int MAX_COURSES = 7; // max courses per semester
+
+    private String major;
+    private int semester;
+    private Course[] courses = new Course[MAX_COURSES];
+    private int courseCount = 0;
+    //constructor
+    public Curriculum(String major, int semester) {
+        if (semester < 1 || semester > 8)
+            throw new IllegalArgumentException("Semester must be between 1 and 8.");
+        this.major = major;
+        this.semester = semester;
+    }
+    //getters
+    public String getMajor() {
+        return major;
+    }
+    public int getSemester() {
+         return semester;
+    }
+
+    public Course[] getCourses() {
+         return courses; 
+    }
+    public int getCourseCount() { 
+        return courseCount;
+ }
+    //method to add a course to the curriculum with validations
+    public boolean addCourse(Course c) {
+
+        // Check if curriculum is full
+        if (courseCount >= MAX_COURSES) {
+            System.out.println("Curriculum course limit reached for " + major + " Sem " + semester);
+            return false;
+        }
+
+        // Check if course is null
+        if (c == null) return false;
+
+        // prevent duplicates
+        for (int i = 0; i < courseCount; i++) {
+            if (courses[i] != null && courses[i].getCourseCode() == c.getCourseCode()) {
+                System.out.println("Course already exists in curriculum: " + c.getCourseName());
+                return false;
+            }
+        }
+        //if all validations are passed add the course to the curriculum
+        courses[courseCount++] = c;
+        return true;
+    }
+    //method to remove a course from the curriculum
+    public boolean removeCourse(int courseCode) {
+        for (int i = 0; i < courseCount; i++) {
+            if (courses[i] != null && courses[i].getCourseCode() == courseCode) {
+                // Shift left to fill the gap
+                for (int j = i; j < courseCount - 1; j++)
+                    courses[j] = courses[j + 1];// the element is overwritten by the next element and so on until the end of the array
+
+                courses[--courseCount] = null;  // clear last slot as last element is now duplicated after shifting
+                System.out.println("Course removed from curriculum.");
+                return true;
+            }
+        }
+        System.out.println("Course not found in curriculum.");
+        return false;
+    }
+
+    @Override
+    public void displayInfo() {
+        System.out.println("\n===== Curriculum: " + major + " | Semester " + semester + " =====");
+        if (courseCount == 0) {
+            System.out.println("No courses added.");
+            return;
+        }
+        for (int i = 0; i < courseCount; i++) {
+            System.out.println("  - " + courses[i].getCourseName() + " (" + courses[i].getCourseCode() + ")");
+        }
+    }
+}
+
+
+
+class AcadClass { //renamed to AcadClass to avoid conflict with built in Class class
     private static final int maxStudents = 50; // max students per class
     private int batchNo;
     private String major;
-    private int studentCount;
     private char section;
+    private int semester;           // moved from Student
+    private int studentCount;
     private Student[] students = new Student[maxStudents];
     private Faculty[] facultyAssigned=new Faculty[12];//max limit of assigned faculty members 
-    
+    private int facultyCount=0;
+    private Curriculum curriculum; // added curriculum reference to link curriculum with class
+    private static final int MAX_CLASS_SCHEDULE = 100;   //max limit of scheduled classes for a class
+    private ScheduledClass[] classSchedule = new ScheduledClass[MAX_CLASS_SCHEDULE]; // ADDED
+    private int classScheduleCount = 0;      // to keep track of number of scheduled classes
+    private TimeSlot[] bookedClassSlots = new TimeSlot[MAX_CLASS_SCHEDULE]; // to keep track of booked time slots of this class
+    private int bookedClassSlotCount = 0;  
     // Constructor
-    public Class(int batchNo, String major, char section) throws IllegalArgumentException {
+    public AcadClass(int batchNo, String major, char section, int semester) throws IllegalArgumentException {
         // Validate batch number (must be less than 1000)
         if (batchNo >= 1000 || batchNo < 0) {
             throw new IllegalArgumentException("Batch number must be less than 1000.");
         }
+        //validate semester (must be between 1 and 8)
+        if (semester < 1 || semester > 8)
+            throw new IllegalArgumentException("Semester must be between 1 and 8.");
         
         this.batchNo = batchNo;
         this.major = major;
         this.section = section;
+        this.semester = semester;
         this.studentCount = 0;
     }
     
@@ -722,7 +798,9 @@ class Class {
     public char getSection() {
         return section;
     }
-    
+    public int getSemester() {//added getter for semester
+        return semester;
+    }
     public int getStudentCount() {
         return studentCount;
     }
@@ -730,23 +808,55 @@ class Class {
     public Student[] getStudents() {
         return students;
     }
-    
+    public Curriculum getCurriculum() {
+        return curriculum;
+    }
+    public Faculty[] getFacultyAssigned() {
+        return facultyAssigned;
+    }
+    public ScheduledClass[] getClassSchedule() {
+        return classSchedule;
+    }
+    public int getClassScheduleCount() {
+        return classScheduleCount;
+    }
+
+    //setter for curriculum
+    public void setCurriculum(Curriculum curriculum) {
+        //validate that the curriculum's major and semester match this class before linking
+        if (curriculum != null && curriculum.getMajor().equalsIgnoreCase(major) && curriculum.getSemester() == semester) {
+            this.curriculum = curriculum;
+            System.out.println("Curriculum linked to class " + major + "-" + batchNo + section);
+        } else {
+            System.out.println("Failed to link curriculum: Major and semester must match the class.");
+        }
+    }
+    public boolean hasCurriculum() {
+        return curriculum != null; //helper method to check if curriculum is linked to the class
+    }
+
+
+    //method to assign faculty to the class
+    public void assignFaculty(Faculty f) {
+        if (facultyCount < facultyAssigned.length) {
+            facultyAssigned[facultyCount++] = f;
+            System.out.println(f.getName() + " assigned to class " + major + "-" + batchNo + section);
+        } else {
+            System.out.println("Faculty limit reached for this class.");
+        }
+    }
+
+
     // Add a student to the class
     // Only adds if the student's major matches this class's major
     public boolean addStudent(Student student) throws IllegalArgumentException {
-        // Check if student's major matches this class's major
-        if (!student.getMajor().equalsIgnoreCase(major)) {
-            System.out.println("Cannot add student: Student's major (" + student.getMajor() 
-                + ") does not match class major (" + major + ").");
-            return false;
-        }
-        
+
         // Check if class is full
         if (studentCount >= maxStudents) {
             System.out.println("Cannot add student: Class is full.");
             return false;
         }
-        
+
         // Check if student is already in the class
         for (int i = 0; i < studentCount; i++) {
             if (students[i].getId() == student.getId()) {
@@ -754,14 +864,19 @@ class Class {
                 return false;
             }
         }
-        
-        // Set the class for the student
+
+        // Check if student's major,semester and section matches this class's major
+        if (!student.getMajor().equalsIgnoreCase(major) || student.getSemester() != semester || student.getSection() != section) {
+            System.out.println("Cannot add student: Student's details do not match class requirements.");
+            return false;
+        }
+    
+        //if all conditions are met, Set the class for the student
         student.setClass(this);
         
         // Add student to the class
         students[studentCount++] = student;
-        System.out.println("Student " + student.getName() + " added to Class " + 
-            batchNo + " " + major + " " + section);
+        System.out.println("Student " + student.getName() + " added to Class " + batchNo + " " + major + " " + section);
         return true;
     }//end of add student method
     
@@ -785,8 +900,84 @@ class Class {
         //if student not found
         System.out.println("Student not found in this class.");
         return false;
-    }
+    }//end of remove student method
     
+    private boolean isWithinUniversityTiming(TimeSlot slot) {
+        //check day is between Monday and Friday
+        String d = slot.getDay();
+        //if day is null return false to avoid null pointer exception in the next line
+        if (d == null) return false;
+
+        boolean validDay = d.equals("Monday") || d.equals("Tuesday") || d.equals("Wednesday")|| d.equals("Thursday") || d.equals("Friday");
+        if (!validDay) return false;    //if day is not valid return false
+        if (slot.getStartTime() == null || slot.getEndTime() == null) return false; //if start or end time is null return false to avoid null pointer exception in the next lines
+
+        //setting university timing from 9 am to 5 pm
+        LocalTime uniStart = LocalTime.of(9, 0);   // 09:00
+        LocalTime uniEnd   = LocalTime.of(17, 0);  // 17:00
+
+        // start >= 09:00, end <= 17:00, and end > start
+        return !slot.getStartTime().isBefore(uniStart)&& !slot.getEndTime().isAfter(uniEnd)&& slot.getEndTime().isAfter(slot.getStartTime());
+    }
+
+    public boolean isAvailable(TimeSlot slot) {
+        // enforce timing first
+        if (!isWithinUniversityTiming(slot)) {
+            System.out.println("Class " + major + "-" + batchNo + section+ " not available: outside university timings (09:00-17:00).");
+            return false;
+        }
+    
+        // capacity for bookings
+        if (bookedClassSlotCount >= bookedClassSlots.length) {
+            System.out.println("Class " + major + "-" + batchNo + section+ " has no remaining booking capacity.");
+            return false;
+        }
+
+        // clash check(already booked for another class at this time)
+        for (int i = 0; i < bookedClassSlotCount; i++) {
+            if (bookedClassSlots[i] != null && bookedClassSlots[i].overlaps(slot)) {
+                System.out.println("Class " + major + "-" + batchNo + section+ " not available: clashes with existing booking.");
+                return false;
+            }
+        }
+        // if all validations are passed then the class is available for booking at this slot
+        return true;
+    }//end of isAvailable method
+
+    //book the slot for this class
+    public boolean bookSlot(TimeSlot slot) {
+        // check availability first
+        if (!isAvailable(slot)) return false;
+        // if available then store the booked slot 
+        bookedClassSlots[bookedClassSlotCount++] = slot;
+        return true;
+    }//end of book slot method
+
+    // store scheduled class entry
+    public void addToClassSchedule(ScheduledClass sc) {
+        if (sc == null) return; // null check
+        // Check if schedule is full
+        if (classScheduleCount >= classSchedule.length) {
+            System.out.println("Class schedule full for " + major + "-" + batchNo + section);
+            return;
+        }
+        // Store the scheduled class in the schedule array
+        classSchedule[classScheduleCount++] = sc;
+    }//end of add to class schedule method
+
+    //display class schedule
+    public void displayClassSchedule() {
+        System.out.println("\n── Class Schedule: " + major + "-" + batchNo + section + " (Sem " + semester + ") ──");
+        if (classScheduleCount == 0) {
+            System.out.println("  No scheduled classes yet.");
+            return;
+        }
+        for (int i = 0; i < classScheduleCount; i++) {
+            ScheduledClass sc = classSchedule[i];
+            System.out.printf("  %-25s  %s  %s-%s  Room %d  Teacher: %s%n",sc.getCourse().getCourseName(),sc.getSlot().getDay(),sc.getSlot().getStartString(),sc.getSlot().getEndString(),sc.getRoom().getRoomNumber(),sc.getTeacher().getName());
+        }
+    }//end of display class schedule method
+
     // Display class information
     public void displayClassInfo() {
         System.out.println("\n======== Class Information ========");
@@ -809,12 +1000,13 @@ class Class {
     }
 }//end of class Class
 
+
 //added grading deadline class for deadline reminder feature for faculty
  class GradingDeadline {
     Course course;
     String taskTitle;
-    Time deadline;
-    public GradingDeadline(Course course, String taskTitle, Time deadline) {
+    String deadline;
+    public GradingDeadline(Course course, String taskTitle, String deadline) {
         this.course = course;
         this.taskTitle = taskTitle;
         this.deadline = deadline;
@@ -827,7 +1019,7 @@ class Class {
         return taskTitle;
     }
     public String getDeadline() {
-        return deadline.getTime();
+        return deadline;
     }
  }//end of class grading deadline
 
@@ -845,7 +1037,7 @@ class DeadlineManager {
     }
 
     //method to set a grading deadline reminder
-    public void setDeadline(String courseName, String taskName, Time deadline) {
+    public void setDeadline(String courseName, String taskName, String deadline) {
         // Check if faculty is assigned to this course
         Course course = faculty.getAssignedCourse(courseName); // added helper method in Faculty
 
@@ -867,11 +1059,11 @@ class DeadlineManager {
         }
          //if all validations are passed then store the deadline reminder
         gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
-        System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline.getTime());
+        System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
 
     }//end of set deadline method
 
-    //method to mark a deadline as "done" and remove it from the list
+    //method to mark a deadline as done and remove it from the list
     public void markDone(String courseName, String taskName) {
         for (int i = 0; i < deadlineCount; i++) {
             if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
@@ -906,6 +1098,7 @@ class Faculty extends User {
     private Course[] assignedCourses= new Course[MAX_COURSES];
     private TimeSlot[] availableSlots= new TimeSlot[MAX_SLOTS]; //assuming faculty can have different slots for different courses
     private TimeSlot[] bookedSlots = new TimeSlot[20]; //to keep track of booked slots 
+    private ScheduledClass[] schedule = new ScheduledClass[MAX_SLOTS];  // for viewing schedule
     private int courseCount = 0;
     private int slotCount = 0;
     private int bookedCount = 0;
@@ -915,22 +1108,38 @@ class Faculty extends User {
         super(id,name,email,password);
         deadlineManager = new DeadlineManager(this,MAX_COURSES * 5); // assuming max 5 deadlines per course(at a time) and passing reference of faculty to deadline manager for validation
     }
+
+    //getters
+    public int getSlotCount() {
+        return slotCount;
+    }
+    public int getCourseCount() {
+        return courseCount;
+    }
+    public int getBookedCount() {
+        return bookedCount;
+    }
+    public TimeSlot[] getAvailableSlots() {
+        return availableSlots;
+    }
+
     //methods
 
-    //assign course to faculty
+    // updated assign course method for faculty
     public void assignCourse(Course c)throws CourseCapacityException {
         if (courseCount >= MAX_COURSES) {
-            throw new CourseCapacityException(
-                getName() + " cannot be assigned more than " + MAX_COURSES + " courses.");
+            throw new CourseCapacityException(getName() + " cannot be assigned more than " + MAX_COURSES + " courses.");
         }
         assignedCourses[courseCount++] = c;
+        c.setAssignedFaculty(this); // course now knows its faculty
         System.out.println(getName() + " assigned to: " + c.getCourseName());
     }
+
     //add available time slot for faculty
     public void addAvailableSlot(TimeSlot slot){
         if(slotCount < MAX_SLOTS){
             availableSlots[slotCount++] = slot;
-            System.out.println("Added available slot for " + getName() + ": " + slot.getDay() + " " + slot.getStartTime().getTime() + "-" + slot.getEndTime().getTime());
+            System.out.println("Added available slot for " + getName() + ": " + slot.getDay() + " " + slot.getStartString() + "-" + slot.getEndString());
         }
     }
 
@@ -944,14 +1153,14 @@ class Faculty extends User {
     // 2:check if the slot is within their available slots
     boolean withinAvailable = false;
     for (int i = 0; i < slotCount; i++) {
-        if (availableSlots[i] != null && availableSlots[i].overlaps(slot)){
-            withinAvailable = true; // overlap with available slot means faculty member are available for this time
+        if (availableSlots[i] != null && availableSlots[i].contains(slot)){
+            withinAvailable = true; // the slot is within this available slot
             break;
         }
     }
 
     if (!withinAvailable){
-        System.out.println(getName() + " is not available for slot: " + slot.getDay() + " " + slot.getStartTime().getTime() + "-" + slot.getEndTime().getTime());
+        System.out.println(getName() + " is not available for slot: " + slot.getDay() + " " + slot.getStartString() + "-" + slot.getEndString());
         return false;  // no available slot covers this time
         }
 
@@ -972,9 +1181,37 @@ class Faculty extends User {
         return false;
     }
         bookedSlots[bookedCount++] = slot;
-        System.out.println("Booking successful: " + getName() + " booked for " + slot.getDay() + " " + slot.getStartTime().getTime() + "-" + slot.getEndTime().getTime());
+        System.out.println("Booking successful: " + getName() + " booked for " + slot.getDay() + " " + slot.getStartString() + "-" + slot.getEndString());
         return true;
     }//end of book slot method
+
+    //helper method for displaying faculty schedule
+    public void addToSchedule(ScheduledClass sc) {
+        schedule[bookedCount - 1] = sc; // bookedCount already incremented in bookSlot method, so the current class should be added at bookedCount - 1 index
+        }
+
+    //method to view teaching schedule of the faculty
+    public void viewTeachingSchedule() {
+    System.out.println("\n── Teaching Schedule for " + getName() + " ──");
+    //if no classes are scheduled
+    if (bookedCount == 0) {
+        System.out.println("  No classes scheduled.");
+        return;
+    }
+    System.out.printf("%-25s  %-10s  %-8s  %-8s  %-5s  %s%n","Course", "Day", "Start", "End", "Room", "Sec");
+    System.out.println("─".repeat(65));
+    //loop through the booked classes and display them
+    for (int i = 0; i < bookedCount; i++) {
+        ScheduledClass sc = schedule[i];
+        System.out.printf("%-25s  %-10s  %-8s  %-8s  %-5d  %c%n",
+            sc.getCourse().getCourseName(),
+            sc.getSlot().getDay(),
+            sc.getSlot().getStartString(),
+            sc.getSlot().getEndString(),
+            sc.getRoom().getRoomNumber(),
+            sc.getSection());
+        }
+    }//end of view teaching schedule method
 
     // DeadlineManager needs this to validate course assignment(to find if faculty is assigned to the course)
     public Course getAssignedCourse(String courseName) {
@@ -995,8 +1232,18 @@ class Faculty extends User {
         deadlineManager.showPending();
     }
 
-  
-}//end of class faculty
+    //makeup request method
+    public void requestMakeup(String courseCode, String reason) {
+        System.out.println("Makeup request by " + getName() +" for " + courseCode + ": " + reason);
+    }//end of makeup request method(made it basic,more implementation to be done in admin module for approval and tracking)
+
+     @Override
+    public void displayInfo(){
+        super.displayInfo();
+        System.out.println("Assigned Courses: "+courseCount);
+   
+    }
+}//end of class faculty(only view attendance anylitics feature left)
 
 class ScheduledClass {  //to store output of timetable generator.
     private Course course;
@@ -1004,13 +1251,16 @@ class ScheduledClass {  //to store output of timetable generator.
     private Room room;
     private TimeSlot slot;
     private char section;
+    private AcadClass acadClass; // added: which class this lecture belongs to
 
-    public ScheduledClass(Course course, Faculty teacher, Room room, TimeSlot slot, char section){
+
+    public ScheduledClass(Course course, Faculty teacher, Room room, TimeSlot slot, char section, AcadClass acadClass) {
         this.course = course;
         this.teacher = teacher;
         this.room = room;
         this.slot = slot;
         this.section = section;
+        this.acadClass = acadClass;
     }
 
     Course getCourse(){
@@ -1031,6 +1281,10 @@ class ScheduledClass {  //to store output of timetable generator.
 
     char getSection(){
         return section;
+    }
+    //added getter for acad class
+    public AcadClass getAcadClass() {
+        return acadClass;
     }
 }
 
@@ -1056,20 +1310,33 @@ class Timetable implements Displayable{   //Stores all scheduled classes.
     
     // add a class if no room or faculty clash
     public void addClass(ScheduledClass sc) throws ScheduleConflictException {
-        // 1. Check faculty availibility
+
+        //1. Check class availability 
+        if (sc.getAcadClass() == null) {
+            throw new ScheduleConflictException("ScheduledClass missing AcadClass reference.");
+        }
+        if (!sc.getAcadClass().isAvailable(sc.getSlot())) {
+        throw new ScheduleConflictException("AcadClass unavailable/booked or outside 9-5: "+ sc.getAcadClass().getMajor() + "-" + sc.getAcadClass().getBatchNo() + sc.getAcadClass().getSection());
+        }
+
+        // 2. Check faculty availibility
         if (!sc.getTeacher().isAvailable(sc.getSlot())) {
             throw new ScheduleConflictException("Faculty unavailable or already booked: " + sc.getTeacher().getName());
             }
-        // 2. Check room availability
+        // 3. Check room availability
         if (!sc.getRoom().isAvailable(sc.getSlot())) {
             throw new ScheduleConflictException("Room unavailable or already booked: Room " + sc.getRoom().getRoomNumber());
         }
 
-        // 3. Both confirmed available, so book them
+        // 3. All confirmed available, so book them
+        sc.getAcadClass().bookSlot(sc.getSlot());      //book the class for this slot to prevent future clashes
+        sc.getAcadClass().addToClassSchedule(sc);      //update class schedule for viewing
+
         sc.getTeacher().bookSlot(sc.getSlot());
+        sc.getTeacher().addToSchedule(sc);                                  //added to faculty schedule for viewing
         sc.getRoom().bookRoom(sc.getSlot());
 
-        // 4. Add to schedule
+        // 4. Add to master timetable
         schedule[totalEntries++] = sc;
     }//end of add class method
     
@@ -1086,8 +1353,8 @@ class Timetable implements Displayable{   //Stores all scheduled classes.
                 sc.getCourse().getCourseName(),//course name
                 sc.getTeacher().getName(),//teacher name
                 sc.getSlot().getDay(),//day
-                sc.getSlot().getStartTime().getTime(),//class starting time
-                sc.getSlot().getEndTime().getTime(),//class starting time
+                sc.getSlot().getStartString(),//class starting time
+                sc.getSlot().getEndString(),//class ending time
                 sc.getRoom().getRoomNumber(),//room number
                 sc.getSection());//character section (A,B etc)
         }
@@ -1149,8 +1416,8 @@ class ExamSeating{
 
 //added basic admin module
 class Admin extends User {
-    public Admin(int id, String name, String email, String password){
-        super(id,name,email,password);
+    public Admin(int id, String name, String email, String password) throws InvalidPasswordException {
+        super(id, name, email, password);
     }
 }
 public class Acadcore {
