@@ -455,12 +455,15 @@ class Student extends User{
             sorted[i].display();
     }
     
-    //overall attendance display
-    public void checkAttendanceRisks() {
-        System.out.println("\n── Attendance Report for " + getName() + " ──");
+    //get attendance report and risk alert for a course
+    public boolean checkAttendanceRisks(String courseName) {
         for (int i = 0; i < courseCount; i++) {
-            attendanceRecords[i].displayAttendance();
-        } //displays attendance for all courses
+        if (enrolledCourses[i] != null && enrolledCourses[i].getCourseName().equalsIgnoreCase(courseName)) {
+            return attendanceRecords[i].isAtRisk(); // boolean flag indicating if the student attendance is below the threshold for this course
+        }
+    }
+    return false; 
+
     }
     
     //detect overlap in timeslots
@@ -978,11 +981,33 @@ class AcadClass { //renamed to AcadClass to avoid conflict with built in Class c
             System.out.println("  No scheduled classes yet.");
             return;
         }
+
+        // Added header to make output readable
+        System.out.printf("%-25s  %-10s  %-8s  %-8s  %-6s  %s%n","Course", "Day", "Start", "End", "Room", "Teacher");
+        System.out.println("─".repeat(75));
+
         for (int i = 0; i < classScheduleCount; i++) {
-            ScheduledClass sc = classSchedule[i];
-            System.out.printf("  %-25s  %s  %s-%s  Room %d  Teacher: %s%n",sc.getCourse().getCourseName(),sc.getSlot().getDay(),sc.getSlot().getStartString(),sc.getSlot().getEndString(),sc.getRoom().getRoomNumber(),sc.getTeacher().getName());
-        }
+        ScheduledClass sc = classSchedule[i];
+        if (sc == null) continue; // safety
+
+        System.out.printf("  %-25s  %-10s  %-8s  %-8s  %-6d  %s%n",sc.getCourse().getCourseName(),sc.getSlot().getDay(),sc.getSlot().getStartString(),sc.getSlot().getEndString(),sc.getRoom().getRoomNumber(),sc.getTeacher().getName());
+    }
     }//end of display class schedule method
+
+    //method to show at-risk students for a course based on attendance(helper method for faculty to identify students who are at risk)
+    public void showAtRiskStudentsForCourse(String courseName) {
+        System.out.println("\n── At-Risk Students (" + courseName + ") for "+ major + "-" + batchNo + section + " ──");
+
+        boolean found = false;
+        for (int i = 0; i < studentCount; i++) {
+            Student s = students[i];
+            if (s != null && s.checkAttendanceRisks(courseName)) {
+                System.out.println("  AT RISK: " + s.getName() + " (ID: " + s.getId() + ")");
+                found = true;
+            }
+        }
+        if (!found) System.out.println("  No at-risk students.");
+    }//end of at-risk students method
 
     // Display class information
     public void displayClassInfo() {
@@ -1250,6 +1275,28 @@ class Faculty extends User {
         deadlineManager.showPending();
     }
 
+    //view attendance analytics feature
+    public void showAtRiskStudents(AcadClass ac, String courseName) {
+        // Check if faculty teaches this course to this class
+        boolean teaches = false;
+        // Loop through the class schedule to find if this faculty is teaching the specified course to this class
+        for (int i = 0; i < ac.getClassScheduleCount(); i++) {
+            ScheduledClass sc = ac.getClassSchedule()[i];
+            if (sc == null) continue;
+            if (sc.getCourse() != null&& sc.getCourse().getCourseName().equalsIgnoreCase(courseName)&& sc.getTeacher() != null&& sc.getTeacher().getId() == this.getId()) {
+            teaches = true;
+            break;  //if found,break the loop
+            }
+        }
+        //if not teaching this course to this class, do not show analytics
+        if (!teaches) {
+            System.out.println("You are not teaching '" + courseName + "' to this class.");
+            return;
+        }
+        ac.showAtRiskStudentsForCourse(courseName);
+    }//end of show at-risk students method
+
+
     //makeup request method
     public void requestMakeup(String courseCode, String reason) {
         System.out.println("Makeup request by " + getName() +" for " + courseCode + ": " + reason);
@@ -1326,7 +1373,7 @@ class Timetable implements Displayable{   //Stores all scheduled classes.
         return totalEntries; 
     }
     
-    // add a class if no room or faculty clash
+    // add a class if no room,acadClass or faculty clash
     public void addClass(ScheduledClass sc) throws ScheduleConflictException {
 
         //1. Check class availability 
@@ -1561,7 +1608,7 @@ class SemesterCoordinator {
                 Course course = cur.getCourses()[c];
                 //if no course skip iteration
                 if (course == null) continue;
-                //if n o faculty assigned for a course then skip iteration
+                //if no faculty assigned for a course then skip iteration
                 if (!course.hasFaculty()) {
                     System.out.println("Skipping " + course.getCourseName()
                             + " for " + ac.getMajor() + "-" + ac.getBatchNo() + ac.getSection()
@@ -1577,19 +1624,14 @@ class SemesterCoordinator {
                 // try each available slot of teacher until we successfully add to timetable
                 for (int sl = 0; sl < teacher.getSlotCount(); sl++) {
                     TimeSlot slot = teacherSlots[sl];
-                    //checks for every slot whether the teacher and class are available simultaneously, if not then skips iteration
                     if (slot == null) continue;
-                    // quick filters
-                    if (!ac.isAvailable(slot)) continue;
-                    if (!teacher.isAvailable(slot)) continue;
                     //checks for every room for an available room
                     Room room = findAvailableRoom(slot);
                     if (room == null) continue;
-                    //when teacher, slot, students are available simultaneously, the class is scheduled
                     ScheduledClass sc = new ScheduledClass(course, teacher, room, slot, ac.getSection(), ac);
 
                     try {
-                        sys.timetable.addClass(sc); // books AcadClass + Faculty + Room
+                        sys.timetable.addClass(sc); // single booking/validation gate
                         System.out.println("Scheduled: " + course.getCourseName()
                                 + " | " + ac.getMajor() + "-" + ac.getBatchNo() + ac.getSection()
                                 + " | " + slot.getDay() + " " + slot.getStartString() + "-" + slot.getEndString()
@@ -1620,21 +1662,65 @@ class SemesterCoordinator {
     }
 }//end of class
 
-// added WorkloadServicwAdmin uses it to monitor faculty workload distribution.
-// Workload metrics (simple):
-
 class WorkloadService {
 
-    public static void reportFacultyWorkload (AcademicSystem sys) {
+    // 1) faculty workload report (FacultyModule can call this)
+    public static void reportWeeklyWorkload(Faculty f) {
+        if (f == null) return;
+
+        System.out.println("\n── Weekly Workload for " + f.getName() + " ──");
+
+        if (f.getBookedCount() == 0) {
+            System.out.println("  No classes scheduled.");
+            // still show credits even if no classes, since faculty might be assigned courses but not scheduled yet
+            System.out.println("  Total lectures: 0");
+            System.out.println("  Total credits:  " + f.getTotalAssignedCreditHours());
+            return;
+        }
+
+        int mon = 0, tue = 0, wed = 0, thu = 0, fri = 0;
+
+        // loop through the faculty's booked classes and count how many are on each day
+        ScheduledClass[] sched = f.getSchedule();
+
+        for (int i = 0; i < f.getBookedCount(); i++) {
+            ScheduledClass sc = sched[i];
+            if (sc == null || sc.getSlot() == null) continue;
+            // get the day of the week for this class and increment the corresponding counter
+            String day = sc.getSlot().getDay();
+            if (day == null) continue;
+
+            switch (day) {
+                case "Monday":    mon++; break;
+                case "Tuesday":   tue++; break;
+                case "Wednesday": wed++; break;
+                case "Thursday":  thu++; break;
+                case "Friday":    fri++; break;
+            }
+        }
+        //print the breakdown of lectures per day
+        System.out.println("  Monday:    " + mon);
+        System.out.println("  Tuesday:   " + tue);
+        System.out.println("  Wednesday: " + wed);
+        System.out.println("  Thursday:  " + thu);
+        System.out.println("  Friday:    " + fri);
+        //print total lectures and total credits for the faculty
+        System.out.println("  Total lectures: " + f.getBookedCount());
+        System.out.println("  Total credits:  " + f.getTotalAssignedCreditHours());
+    }
+
+    // 2) admin report of all faculty workload (Admin module can call this)
+    public static void reportAllFacultyWorkload(AcademicSystem sys) {
         System.out.println("\n================ FACULTY WORKLOAD REPORT ================");
-        if (sys.facultyCount == 0) {
+        if (sys == null || sys.facultyCount == 0) {
             System.out.println("No faculty registered.");
             return;
         }
-        //prints faculty workload in formatted way
+
+        // summary list 
         System.out.printf("%-20s  %-10s  %-10s%n", "Faculty", "Credits", "Lectures");
         System.out.println("─".repeat(50));
-
+        // loop through all faculty and print their total assigned credits and booked lectures
         for (int i = 0; i < sys.facultyCount; i++) {
             Faculty f = sys.faculty[i];
             if (f == null) continue;
@@ -1644,8 +1730,15 @@ class WorkloadService {
                     f.getTotalAssignedCreditHours(),
                     f.getBookedCount());
         }
+
+        // detailed breakdown per faculty
+        for (int i = 0; i < sys.facultyCount; i++) {
+            Faculty f = sys.faculty[i];
+            if (f == null) continue;
+            reportWeeklyWorkload(f);    // calls the previous method to show weekly workload for each faculty
+        }
     }
-}// end of WorkloadService
+}
 
 // added RoomUtilizationService
 // Tracks how many slots each room has booked.
