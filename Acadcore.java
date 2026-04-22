@@ -528,6 +528,13 @@ class Room implements Displayable{
         this.capacity = capacity;
         this.maintenanceNote = ""; // default no maintenance issues
     }
+    //added getters for Admin room-utilization reporting
+    public int getBookedCount() { 
+        return bookedCount; 
+    }
+    public int getBookingCapacity() { 
+        return bookedSlots.length; 
+    }
     //getters
     int getRoomNumber(){
         return roomNumber;
@@ -606,7 +613,6 @@ class TimeSlot {
     //added getter setters and validations
     void setDay(int choice){
         String[] days = {"Monday","Tuesday","Wednesday","Thursday","Friday"};   //using array to store days
-        System.out.println("Enter\n1 for Monday\n2 for Tuesday\n3 for Wednesday\n4 for Thursday\n5 for Friday");
         if (choice >= 1 && choice <= 5) {
             day = days[choice - 1];
         } 
@@ -1108,7 +1114,19 @@ class Faculty extends User {
         super(id,name,email,password);
         deadlineManager = new DeadlineManager(this,MAX_COURSES * 5); // assuming max 5 deadlines per course(at a time) and passing reference of faculty to deadline manager for validation
     }
+    //added get schedule for use in admin module
+    public ScheduledClass[] getSchedule() {
+        return schedule;
+    }
 
+    // added method that calculates total credit hrs and returns it
+    public int getTotalAssignedCreditHours() {
+        int sum = 0;
+        for (int i = 0; i < courseCount; i++) {
+            if (assignedCourses[i] != null) sum += assignedCourses[i].getCreditHours();
+        }
+        return sum;
+    }   
     //getters
     public int getSlotCount() {
         return slotCount;
@@ -1333,7 +1351,7 @@ class Timetable implements Displayable{   //Stores all scheduled classes.
         sc.getAcadClass().addToClassSchedule(sc);      //update class schedule for viewing
 
         sc.getTeacher().bookSlot(sc.getSlot());
-        sc.getTeacher().addToSchedule(sc);                                  //added to faculty schedule for viewing
+        sc.getTeacher().addToSchedule(sc);             //added to faculty schedule for viewing
         sc.getRoom().bookRoom(sc.getSlot());
 
         // 4. Add to master timetable
@@ -1414,12 +1432,308 @@ class ExamSeating{
 
 }//end of class Exam Seating
 
-//added basic admin module
+// added AcademicSystem
+class AcademicSystem {
+    //array to store classes
+    AcadClass[] classes = new AcadClass[100];//max limit 50 for now
+    int classCount = 0;
+    //array to store curicula
+    Curriculum[] curricula = new Curriculum[200];
+    int curriculumCount = 0;
+    //array to store faculty 
+    Faculty[] faculty = new Faculty[200];
+    int facultyCount = 0;
+    //array to store rooms
+    Room[] rooms = new Room[100];
+    int roomCount = 0;
+    // master timetable to store all the timetables
+    Timetable timetable = new Timetable(); 
+    //adders check empty index and size or arrays
+    public void addClass(AcadClass c) {
+        if (c != null && classCount < classes.length) classes[classCount++] = c;
+    }
+    public void addCurriculum(Curriculum c) {
+        if (c != null && curriculumCount < curricula.length) curricula[curriculumCount++] = c;
+    }
+    public void addFaculty(Faculty f) {
+        if (f != null && facultyCount < faculty.length) faculty[facultyCount++] = f;
+    }
+    public void addRoom(Room r) {
+        if (r != null && roomCount < rooms.length) rooms[roomCount++] = r;
+    }
+}//end of AcademicSystem
+
+// ═══════════════════════════════════════════════
+//added SemesterCoordinator Admin uses this to generate clash-free timetable.
+// 
+class SemesterCoordinator {
+
+    private AcademicSystem sys;
+    //constructor
+    public SemesterCoordinator(AcademicSystem sys) {
+        this.sys = sys;
+    }
+
+    public void linkCurricula() {
+        System.out.println("\n   Linking curricula to classes   ");
+
+        for (int i = 0; i < sys.classCount; i++) //loop to traverse through classes array
+        {
+            AcadClass ac = sys.classes[i];//stores the particular class in a new variable
+            boolean linked = false;
+            //loop to traverse through curicula array
+            for (int j = 0; j < sys.curriculumCount; j++) {
+                Curriculum cur = sys.curricula[j];
+                if (cur != null
+                        && cur.getMajor().equalsIgnoreCase(ac.getMajor())
+                        && cur.getSemester() == ac.getSemester()) //checks that curriculum is not empty and then matches the major and semester
+                {
+                    ac.setCurriculum(cur);     //when everything matches, it sets curriculum for the particular class
+                    linked = ac.hasCurriculum();
+                    break;
+                }
+            }
+
+            if (!linked) {
+                System.out.println("WARNING: No curriculum found for "
+                        + ac.getMajor() + " semester " + ac.getSemester()
+                        + " (Class " + ac.getBatchNo() + ac.getSection() + ")");
+            }
+        }
+    }
+
+    //enroll all students of class in its curriculum courses
+    public void enrollStudentsInCourses() {
+        System.out.println("\n   Enrolling students in courses   ");
+        //loop traversing through classes
+        for (int i = 0; i < sys.classCount; i++) {
+            AcadClass ac = sys.classes[i];
+            //if class has no linked curriculum then skip the iteration
+            if (!ac.hasCurriculum()) {
+                System.out.println("Skipping enrollment for "
+                        + ac.getMajor() + "-" + ac.getBatchNo() + ac.getSection()
+                        + ": No curriculum linked.");
+                continue;
+            }
+            //stores curriculum and the students array of each class
+            Curriculum cur = ac.getCurriculum();
+            Student[] students = ac.getStudents();
+            //loop traverses through each student array
+            for (int s = 0; s < ac.getStudentCount(); s++) {
+                Student st = students[s];
+                for (int c = 0; c < cur.getCourseCount(); c++) {
+                    Course course = cur.getCourses()[c];
+                    if (course == null) continue;//if no student present at the index then skip iteration
+
+                    try {
+                        st.enrollCourse(course);//try block for enroll course 
+                    } catch (CourseCapacityException e) {
+                        System.out.println("Enroll failed: " + e.getMessage());//catch block if enrollment fails
+                    }
+                }
+            }
+            //prompt if enrollment succeeds
+            System.out.println("Enrolled " + ac.getStudentCount() + " students of "
+                    + ac.getMajor() + "-" + ac.getBatchNo() + ac.getSection()
+                    + " in " + cur.getCourseCount() + " courses.");
+        }
+    }
+    //method that returns the available room
+    private Room findAvailableRoom(TimeSlot slot) {
+        for (int r = 0; r < sys.roomCount; r++) {
+            Room room = sys.rooms[r];
+            if (room != null && room.isAvailable(slot)) return room;
+        }
+        return null;
+    }
+
+    //timetable generator
+    public void generateTimetable() {
+        System.out.println("\n   Generating clash-free timetable   ");
+        //for all classes
+        for (int i = 0; i < sys.classCount; i++) {
+            AcadClass ac = sys.classes[i];
+            if (!ac.hasCurriculum()) continue;
+            //gets curriculum of class
+            Curriculum cur = ac.getCurriculum();
+            //for everycourse
+            for (int c = 0; c < cur.getCourseCount(); c++) {
+                Course course = cur.getCourses()[c];
+                //if no course skip iteration
+                if (course == null) continue;
+                //if n o faculty assigned for a course then skip iteration
+                if (!course.hasFaculty()) {
+                    System.out.println("Skipping " + course.getCourseName()
+                            + " for " + ac.getMajor() + "-" + ac.getBatchNo() + ac.getSection()
+                            + ": no faculty assigned.");
+                    continue;
+                }
+                //if faculty assigned then stores it
+                Faculty teacher = course.getFacultyAssigned();
+                boolean scheduled = false;
+                //stores the available slots of the teacher
+                TimeSlot[] teacherSlots = teacher.getAvailableSlots();
+
+                // try each available slot of teacher until we successfully add to timetable
+                for (int sl = 0; sl < teacher.getSlotCount(); sl++) {
+                    TimeSlot slot = teacherSlots[sl];
+                    //checks for every slot whether the teacher and class are available simultaneously, if not then skips iteration
+                    if (slot == null) continue;
+                    // quick filters
+                    if (!ac.isAvailable(slot)) continue;
+                    if (!teacher.isAvailable(slot)) continue;
+                    //checks for every room for an available room
+                    Room room = findAvailableRoom(slot);
+                    if (room == null) continue;
+                    //when teacher, slot, students are available simultaneously, the class is scheduled
+                    ScheduledClass sc = new ScheduledClass(course, teacher, room, slot, ac.getSection(), ac);
+
+                    try {
+                        sys.timetable.addClass(sc); // books AcadClass + Faculty + Room
+                        System.out.println("Scheduled: " + course.getCourseName()
+                                + " | " + ac.getMajor() + "-" + ac.getBatchNo() + ac.getSection()
+                                + " | " + slot.getDay() + " " + slot.getStartString() + "-" + slot.getEndString()
+                                + " | Room " + room.getRoomNumber()
+                                + " | " + teacher.getName());
+                        scheduled = true;
+                        break;
+                    } catch (ScheduleConflictException e) {
+                        
+                    }
+                }
+
+                if (!scheduled) {
+                    System.out.println("Could not schedule: " + course.getCourseName()
+                            + " for class " + ac.getMajor() + "-" + ac.getBatchNo() + ac.getSection());
+                }
+            }
+        }
+        //prompt when timetable generation is successful
+        System.out.println("\n   Timetable generation complete   ");
+        sys.timetable.displayInfo();
+    }
+    //mehod to run all the above simultaneously
+    public void runSetup() {
+        linkCurricula();
+        enrollStudentsInCourses();
+        generateTimetable();
+    }
+}//end of class
+
+// added WorkloadServicwAdmin uses it to monitor faculty workload distribution.
+// Workload metrics (simple):
+
+class WorkloadService {
+
+    public static void reportFacultyWorkload (AcademicSystem sys) {
+        System.out.println("\n================ FACULTY WORKLOAD REPORT ================");
+        if (sys.facultyCount == 0) {
+            System.out.println("No faculty registered.");
+            return;
+        }
+        //prints faculty workload in formatted way
+        System.out.printf("%-20s  %-10s  %-10s%n", "Faculty", "Credits", "Lectures");
+        System.out.println("─".repeat(50));
+
+        for (int i = 0; i < sys.facultyCount; i++) {
+            Faculty f = sys.faculty[i];
+            if (f == null) continue;
+
+            System.out.printf("%-20s  %-10d  %-10d%n",
+                    f.getName(),
+                    f.getTotalAssignedCreditHours(),
+                    f.getBookedCount());
+        }
+    }
+}// end of WorkloadService
+
+// added RoomUtilizationService
+// Tracks how many slots each room has booked.
+class RoomUtilizationService {
+
+    public static void reportRoomUtilization(AcademicSystem sys) {
+        System.out.println("\n================ ROOM UTILIZATION REPORT ================");
+        if (sys.roomCount == 0) {
+            System.out.println("No rooms registered.");
+            return;
+        }
+        //prints report of booked rooms
+        System.out.printf("%-10s  %-10s  %-10s  %-10s%n", "Room", "Capacity", "Booked", "MaxSlots");
+        System.out.println("-".repeat(55));//repeates - 55 times
+
+        for (int i = 0; i < sys.roomCount; i++) {
+            Room r = sys.rooms[i];
+            if (r == null) continue;
+
+            System.out.printf("%-10d  %-10d  %-10d  %-10d%n",
+                    r.getRoomNumber(),
+                    r.getCapacity(),
+                    r.getBookedCount(),
+                    r.getBookingCapacity());
+        }
+    }
+}//end of RoomUtilizationService
+
+//added MaintenanceService
+//Admin can view maintenance report 
+class MaintenanceService {
+
+    public static void showMaintenanceReports(AcademicSystem sys) {
+        System.out.println("\n================ MAINTENANCE REPORTS ================");
+        boolean found = false;
+
+        for (int i = 0; i < sys.roomCount; i++) {
+            Room r = sys.rooms[i];
+            if (r != null && r.hasMaintenanceIssue()) {
+                r.displayInfo();//displays maintenance issue report if exists
+                found = true;
+            }
+        }
+        //prompt if no issue exists
+        if (!found) System.out.println("No maintenance issues reported.");
+    }
+}
+
+// updated Admin module (backend role)
+// Admin calls engines/services:
 class Admin extends User {
+    //constructor
     public Admin(int id, String name, String email, String password) throws InvalidPasswordException {
         super(id, name, email, password);
     }
-}
+
+    // Admin generates clash-free timetable
+    public void generateClashFreeTimetable(AcademicSystem sys) {
+        SemesterCoordinator coord = new SemesterCoordinator(sys);
+        coord.runSetup();
+    }
+
+    // Admin monitors faculty workload distribution
+    public void monitorFacultyWorkload(AcademicSystem sys) {
+        WorkloadService.reportFacultyWorkload(sys);
+    }
+
+    // Admin tracks room utilization
+    public void trackRoomUtilization(AcademicSystem sys) {
+        RoomUtilizationService.reportRoomUtilization(sys);
+    }
+
+    // Admin views maintenance issue reports
+    public void viewMaintenanceReports(AcademicSystem sys) {
+        MaintenanceService.showMaintenanceReports(sys);
+    }
+
+    // Admin generates exam seating plan (calls your algorithm)
+    public void generateExamSeatingPlan(Course course, Room[] rooms, Student[] students, int studentCount) {
+        try {
+            ExamSeating seating = new ExamSeating(course, rooms, students, studentCount);
+            seating.generateSeatingPlan();
+        } catch (RoomCapacityException e) {
+            System.out.println("Exam seating failed: " + e.getMessage());
+        }
+    }
+}//end of admin class
+
 public class Acadcore {
 
     public static void main(String[] args) {
