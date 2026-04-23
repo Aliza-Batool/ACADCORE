@@ -9,8 +9,10 @@ package com.km.kmproject1;
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
 
+import java.lang.reflect.Array;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 
 //  EXCEPTIONS
 //added invalid password exception
@@ -354,6 +356,8 @@ class Student extends User{
     private int assignmentCount = 0;
     private double gpa; //added gpa attribute for study group finder
     private double cgpa; //added cgpa attribute for study group finder
+    private ArrayList<SeatingAssignment> myFullExamSchedule = new ArrayList<>();
+
     
     //constructor might throw invalid password exception
     public Student(int id,String name,String email,String password,AcadClass classOfStudent)throws InvalidPasswordException{
@@ -388,6 +392,9 @@ class Student extends User{
     public AcadClass getClassOfStudent() {
         return classOfStudent;
     }
+    public ArrayList<SeatingAssignment> getMyFullExamSchedule() {
+        return myFullExamSchedule;
+    }
     //setter for AcadClass used in remove student from class method
     public void setClass(AcadClass classOfStudent){
         this.classOfStudent=classOfStudent;
@@ -400,6 +407,13 @@ class Student extends User{
             throw new CourseCapacityException(
                 getName() + " cannot enroll in more than " + MAX_COURSES + " courses.");
         }//throws exception is courses exceed the limit
+        //check if the course is already enrolled
+        for (int i = 0; i < courseCount; i++) {
+            if (enrolledCourses[i] != null && enrolledCourses[i].getCourseCode() == c.getCourseCode()) {
+                System.out.println(getName() + " is already enrolled in: " + c.getCourseName());
+                return;
+            }
+        }
         enrolledCourses[courseCount]   = c;
         attendanceRecords[courseCount] = new Attendance(c);
         courseCount++;
@@ -493,6 +507,21 @@ class Student extends User{
             return;
         }
         classOfStudent.displayClassSchedule();
+    }
+    //method for admin to add exam seating assignment of the student
+    public void addExamAssignment(SeatingAssignment assignment) {
+        this.myFullExamSchedule.add(assignment);
+    }
+
+    public void viewExamSchedule() {
+        System.out.println("\n── Exam Seating Assignments for " + getName() + " ──");
+        if (myFullExamSchedule.isEmpty()) {
+            System.out.println("  No exam assignments.");
+            return;
+        }
+        for (SeatingAssignment sa : myFullExamSchedule) {
+            System.out.println("  " + sa.getCourse().getCourseName() + " on " + sa.getDate() + " in Room " + sa.getRoom().getRoomNumber() + " Seat " + sa.getSeatNumber());
+        }
     }
     //display info
     @Override
@@ -1426,58 +1455,189 @@ class Timetable implements Displayable{   //Stores all scheduled classes.
     }
 }//end of timetable class
 
-//added exam seating class
-//checks if space is enough for course exam conduction an
-class ExamSeating{
-    //attributes
+// added exam paper class to store course and students for each paper 
+class ExamPaper {
     private Course course;
-    private Room[] rooms;//array of rooms alloted for exam
-    private Student[] students;//array of students giving exam per course
+    private Student[] students;
     private int studentCount;
 
-    //constructor
-    public ExamSeating(Course course, Room[] rooms,
-                       Student[] students, int studentCount) {
+    public ExamPaper(Course course, Student[] students, int studentCount) {
         this.course = course;
-        this.rooms = rooms;
         this.students = students;
         this.studentCount = studentCount;
     }
 
-    //counts the space available for students, and gives exception if no. of students exceeds space also fills students according to the array provided
-    public void generateSeatingPlan() throws RoomCapacityException {
-        int totalCapacity = 0;
+    public Course getCourse() {
+        return course;
+    }
+
+    public Student[] getStudents() {
+        return students;
+    }
+
+    public int getStudentCount() {
+        return studentCount;
+    }
+}
+
+// day schedule that contains all papers held on the same date
+class ExamDaySchedule {
+    private static final int MAX_PAPERS = 10; // max papers that can be held on the same day
+    private String examDate;    // date in string format for simplicity, can be changed later to integrate with date handling libraries
+    private ExamPaper[] papers = new ExamPaper[MAX_PAPERS];
+    private int paperCount = 0;
+    //constructor
+    public ExamDaySchedule(String examDate) {
+        this.examDate = examDate;
+    }
+    //
+    public String getExamDate() {
+        return examDate;
+    }
+
+    public int getPaperCount() {
+        return paperCount;
+    }
+
+    public ExamPaper[] getPapers() {
+        return papers;
+    }
+    public String getDate() {
+        return examDate;
+    }
+
+    //add paper course + its students into this day
+    public boolean addPaper(ExamPaper paper) {
+        //if paper is null or paper count exceeds limit,dont add
+        if (paper == null || paperCount >= papers.length) return false;
+        papers[paperCount++] = paper;
+        return true;
+    }
+}
+//seating assignment class
+class SeatingAssignment {
+    private String date; // date of the exam
+    private Course course; // course for which this seating assignment is made
+    private Student student;
+    private Room room;  
+    private int seatNumber; // to store the seat number assigned to this student in that room
+    //constructor
+    public SeatingAssignment(Student s, Room r, int seat, String date, Course course) {
+        this.student = s;
+        this.room = r;
+        this.seatNumber = seat;
+        this.date = date;
+        this.course = course;
+    }
+    // getters
+    public Student getStudent() {
+        return student;
+    }
+    public Room getRoom() {
+        return room;
+    }
+    public int getSeatNumber() {
+        return seatNumber;
+    }
+    public String getDate() {
+        return date;
+    }
+    public Course getCourse() {
+        return course;
+    }
+     
+}
+
+
+// added exam seating class
+class ExamSeating{
+    //to generate a single day seating plan
+    //attributes
+    private ExamDaySchedule examDaySchedule;
+    private Room[] rooms;  // rooms in which exam can be held
+    private ArrayList<SeatingAssignment>seatingPlan=new ArrayList<>(); // to store the final seating plan for the day
+
+    // constructor
+    public ExamSeating(ExamDaySchedule examDaySchedule, Room[] rooms) {
+        this.examDaySchedule = examDaySchedule;
+        this.rooms = rooms;
+    }
+
+    // count all students across all papers of the day to get total no of seats needed
+    private int getTotalStudentsForDay() {
+        int total = 0;
+        for (int i = 0; i < examDaySchedule.getPaperCount(); i++) {
+            ExamPaper p = examDaySchedule.getPapers()[i];
+            if (p != null) total += p.getStudentCount();
+        }
+        return total;
+    }
+
+    // get total rooms required to accommodate all students
+    public ArrayList<Room> getRoomsNeeded() {
+        ArrayList<Room> needed = new ArrayList<>();
+        int target = getTotalStudentsForDay();// total seats needed for the day
+        int capacityReached = 0;
         for (Room r : rooms) {
-            if (r != null) 
-                totalCapacity += (r.getCapacity())/2;//in exams every alternate row is left empty thereby reducing room capacity to half
+            // stop calculating rooms if capacity Reached is equal to or more than target
+            // we have enough rooms so stop the loop immediately
+            if (capacityReached >= target) {
+                break;
+            }
+            if (r != null) {
+                int effectiveCap = r.getCapacity() / 2; //half capacity of room is used to maintain distancing
+                capacityReached += effectiveCap;    // add effective capacity of this room to the total capacity reached so far
+                needed.add(r);  // add this room to the list of needed rooms
+                }
+            }
+            return needed;
         }
+        
+        //realistic day-wise seating plan generator
+        public void generateSeatingPlanForDay() throws RoomCapacityException {
+            if (examDaySchedule == null || examDaySchedule.getPaperCount() == 0) {
+                throw new RoomCapacityException("No papers scheduled for exam day.");
+            }
+            
+            ExamPaper[] papers = examDaySchedule.getPapers();
+            ArrayList<Room> ExamRooms = getRoomsNeeded();
+            int roomIdx = 0;
+            int seatIdx = 1; // 1 = Odd seats, 2 = Even seats
+            int currentSeatInRoom = 1;
+            // Loop through each paper and assign students to rooms and seats
+            for (ExamPaper paper : papers) {
+                if (paper == null) continue;
+                String currentExamDate = examDaySchedule.getDate(); // Get date from the schedule
+                Course currentCourse = paper.getCourse(); // Get course from the paper
+                // Loop through students of this paper
+                for (Student student : paper.getStudents()) {
+                    if (roomIdx >= ExamRooms.size()) break; // No more rooms available, stop assigning
+                    //fetch a room from the needed rooms list
+                    Room currentRoom = ExamRooms.get(roomIdx);
 
-        if (totalCapacity < studentCount) {
-            throw new RoomCapacityException(
-                "Not enough room capacity for exam: " + course.getCourseName());
-        }
-        //prints seating plan
-        System.out.println("\n===== Exam Seating Plan – " + course.getCourseName() + " =====");
-        int studentIndex = 0;
-        for (int ri = 0; ri < rooms.length && studentIndex < studentCount; ri++) //stops if either students are completed or rooms are filled
-        {
-            if (rooms[ri] == null) continue;//skips the iteration for empty room
-            System.out.println("Room " + rooms[ri].getRoomNumber() +
-                               " (capacity " + (rooms[ri].getCapacity())/2 + "):");//prints room number and capacity
-            int seat = 1;//starts from 1 for each room
-            while (seat <= (rooms[ri].getCapacity())/2 && studentIndex < studentCount)//while the room capacity is not reached or students are not completely filled
-            {
-                System.out.printf("   Seat %2d – %s (ID: %d)%n",
-                    seat, students[studentIndex].getMajor(),
-                    students[studentIndex].getId());//needs batch number
-                
-                studentIndex++;//increments index to next student
-                seat++; //increments seat to next seat
-            }//end of while
-        }//end of for
-    }//end of method
-
-}//end of class Exam Seating
+                    //Create the assignment
+                    SeatingAssignment assignment = new SeatingAssignment(student, currentRoom, currentSeatInRoom, currentExamDate, currentCourse);
+                    // Save to the seating plan list
+                    seatingPlan.add(assignment);    // add this assignment to the seating plan for the day
+                    //  Save to Student (so it can be viewed later by student or admin)
+                    student.addExamAssignment(assignment); 
+                    //increment seat by 2 (alternating)
+                    currentSeatInRoom += 2;
+                    // If seat number exceeds room capacity, move to next room and reset seat number
+                    if (currentSeatInRoom > currentRoom.getCapacity()) {
+                        roomIdx++;
+                        currentSeatInRoom = seatIdx; // Reset to 1 or 2
+                        }//all students of this paper are assigned, move to next paper
+                    }// after assigning all students of this paper, switch to the next seat pattern (odd/even) for the next paper
+                    // Switch to "Even" seats (the gaps) for the next paper/course
+                    if (seatIdx == 1) { //if odd seats were used for the first paper, then use even seats for the next paper
+                    seatIdx = 2;
+                    roomIdx = 0; // Go back to first room to fill gaps
+                    currentSeatInRoom = 2;
+                }
+            }
+        }// end of generate seating plan for day method
+}//end of exam seating class
 
 // added AcademicSystem
 class AcademicSystem {
@@ -1803,7 +1963,7 @@ class Admin extends User {
 
     // Admin monitors faculty workload distribution
     public void monitorFacultyWorkload(AcademicSystem sys) {
-        WorkloadService.reportFacultyWorkload(sys);
+        WorkloadService.reportAllFacultyWorkload(sys);
     }
 
     // Admin tracks room utilization
@@ -1816,7 +1976,17 @@ class Admin extends User {
         MaintenanceService.showMaintenanceReports(sys);
     }
 
-    // Admin generates exam seating plan (calls your algorithm)
+    // NEW: Admin generates day-wise exam seating plan for all papers held on a date
+    public void generateExamSeatingPlan(ExamDaySchedule daySchedule, Room[] rooms) {
+        try {
+            ExamSeating seating = new ExamSeating(rooms);
+            seating.generateSeatingPlanForDay(daySchedule);
+        } catch (RoomCapacityException e) {
+            System.out.println("Exam seating failed: " + e.getMessage());
+        }
+    }
+
+    // legacy method retained for backward compatibility with old single-course flow
     public void generateExamSeatingPlan(Course course, Room[] rooms, Student[] students, int studentCount) {
         try {
             ExamSeating seating = new ExamSeating(course, rooms, students, studentCount);
