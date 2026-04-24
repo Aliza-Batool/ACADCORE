@@ -9,7 +9,6 @@ package com.km.kmproject1;
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
 
-import java.lang.reflect.Array;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -510,6 +509,18 @@ class Student extends User{
     }
     //method for admin to add exam seating assignment of the student
     public void addExamAssignment(SeatingAssignment assignment) {
+        if (assignment == null) {
+            return;
+        }
+        for (SeatingAssignment existing : myFullExamSchedule) {
+            if (existing != null
+                    && existing.getDate().equals(assignment.getDate())
+                    && existing.getCourse() != null
+                    && assignment.getCourse() != null
+                    && existing.getCourse().getCourseCode() == assignment.getCourse().getCourseCode()) {
+                return;
+            }
+        }
         this.myFullExamSchedule.add(assignment);
     }
 
@@ -775,6 +786,15 @@ class Curriculum implements Displayable {
         System.out.println("Course not found in curriculum.");
         return false;
     }
+    //method to check if a course is part of the curriculum
+    public boolean containsCourse(String courseName) {
+        for (int i = 0; i < courseCount; i++) {
+            if (courses[i] != null && courses[i].getCourseName().equals(courseName)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     public void displayInfo() {
@@ -857,6 +877,24 @@ class AcadClass { //renamed to AcadClass to avoid conflict with built in Class c
     }
     public int getClassScheduleCount() {
         return classScheduleCount;
+    }
+    //getcourses method to get courses from curriculum
+    public Course[] getCourses() {
+        if (curriculum != null) {
+            return curriculum.getCourses();
+        }
+        return new Course[0]; // return empty array if no curriculum linked
+    }
+    //find course in the class curriculum by name
+    public Course findCourseByName(String courseName) {
+        if (curriculum != null) {
+            for (Course c : curriculum.getCourses()) {
+                if (c != null && c.getCourseName().equalsIgnoreCase(courseName)) {
+                    return c;
+                }
+            }
+        }
+        return null; // not found
     }
 
     //setter for curriculum
@@ -1458,25 +1496,52 @@ class Timetable implements Displayable{   //Stores all scheduled classes.
 // added exam paper class to store course and students for each paper 
 class ExamPaper {
     private Course course;
-    private Student[] students;
-    private int studentCount;
-
-    public ExamPaper(Course course, Student[] students, int studentCount) {
+    private ArrayList<Student> students=new ArrayList<>(); // to store students taking this paper
+    private ArrayList<AcadClass> classes=new ArrayList<>(); // to store which classes are taking this paper for better seating arrangement
+    private AcademicSystem system; // reference to the main system for any finding students and classes related to this paper
+    //cosntructor(admin will only give which course's paper is being created and the system, students will be added later by system automatically) 
+    public ExamPaper(Course course,AcademicSystem system) {
         this.course = course;
-        this.students = students;
-        this.studentCount = studentCount;
+        this.system = system;
     }
+    //loop thorough all Acadclasses in the system and find which classes are taking this course and add them in the list and also add all students of those classes in the student list for this paper
+    public void FindClasses() {
+        //clear previous data if any before finding again to avoid duplicates in case this method is called multiple times for the same paper
+        classes.clear();
+        students.clear();
+        for (AcadClass ac : system.getClasses()) {
+            if (ac == null) continue;
+            //check if this class has curriculum linked and if it contains this course
+            if (ac.hasCurriculum() && ac.getCurriculum().containsCourse(course.getCourseName())) {
+                classes.add(ac);
+                //add all students of this class to the paper's student list
+                for (Student s : ac.getStudents()) {
+                    if (s != null) {
+                        students.add(s);
+                    }
+                }
+            }
+        }
 
+    
+    }
+    //getters
     public Course getCourse() {
         return course;
     }
-
-    public Student[] getStudents() {
+    public ArrayList<Student> getStudents() {
         return students;
     }
-
+    public ArrayList<AcadClass> getClasses() {
+        return classes;
+    }
+    //count students taking this paper
     public int getStudentCount() {
-        return studentCount;
+        return students.size();
+    }
+    //count classes taking this paper
+    public int getClassCount() {
+        return classes.size();
     }
 }
 
@@ -1486,7 +1551,7 @@ class ExamDaySchedule {
     private String examDate;    // date in string format for simplicity, can be changed later to integrate with date handling libraries
     private ExamPaper[] papers = new ExamPaper[MAX_PAPERS];
     private int paperCount = 0;
-    //constructor
+    //constructor(admin only gives the date for which the schedule is being created,papers will be added later by system automatically)
     public ExamDaySchedule(String examDate) {
         this.examDate = examDate;
     }
@@ -1505,11 +1570,31 @@ class ExamDaySchedule {
     public String getDate() {
         return examDate;
     }
+    public int getTotalStudentsForDay() {
+        int total = 0;
+        //loop through all papers of the day and count total students taking exams on this day
+        for (int i = 0; i < paperCount; i++) {
+            if (papers[i] != null) total += papers[i].getStudentCount();
+        }
+        return total;
+    }
 
-    //add paper course + its students into this day
+    //add paper to this day
     public boolean addPaper(ExamPaper paper) {
         //if paper is null or paper count exceeds limit,dont add
-        if (paper == null || paperCount >= papers.length) return false;
+        if (paper == null || paperCount >= papers.length){
+                System.out.println("Cannot add paper: Invalid paper or maximum papers reached for " + examDate);
+                return false;
+        }
+        for (int i = 0; i < paperCount; i++) {
+            if (papers[i] != null
+                    && papers[i].getCourse() != null
+                    && papers[i].getCourse().getCourseCode() == paper.getCourse().getCourseCode()) {
+                System.out.println("Paper already exists in schedule for " + examDate + ": " + paper.getCourse().getCourseName());
+                return false;
+            }
+        }
+        //if all validations are passed then add the paper to the schedule for this day
         papers[paperCount++] = paper;
         return true;
     }
@@ -1555,32 +1640,25 @@ class ExamSeating{
     //attributes
     private ExamDaySchedule examDaySchedule;
     private Room[] rooms;  // rooms in which exam can be held
+    private ArrayList<Room> ExamRooms; // to store the rooms needed to accommodate all students of the day based on the total count and room capacities
     private ArrayList<SeatingAssignment>seatingPlan=new ArrayList<>(); // to store the final seating plan for the day
-    private Course course;//added to store the course
-    private Student[] students;//added to store the students for a particular exam
-    private int studentCount;//student count
-    
-    // constructor
-    // required because Admin calls new ExamSeating(rooms)
-    public ExamSeating(Room[] rooms) {
-        this.rooms = rooms;
-    }
 
-    //existing constructor
+    // constructor(admin will give the day schedule for which the seating plan is being generated and the rooms available for that day)
     public ExamSeating(ExamDaySchedule examDaySchedule, Room[] rooms) {
         this.examDaySchedule = examDaySchedule;
         this.rooms = rooms;
     }
-
-    //needed for Admin method
-    public ExamSeating(Course course, Room[] rooms, Student[] students, int studentCount) {
-        this.course = course;
-        this.rooms = rooms;
-        this.students = students;
-        this.studentCount = studentCount;
+    //getters
+    public ExamDaySchedule getExamDaySchedule() {
+        return examDaySchedule;
     }
-
-
+    public Room[] getRooms() {
+        return rooms;
+    }
+    public ArrayList<SeatingAssignment> getSeatingPlan() {
+        return seatingPlan;
+    }
+    //other methods
     // count all students across all papers of the day to get total no of seats needed
     private int getTotalStudentsForDay() {
         int total = 0;
@@ -1597,33 +1675,32 @@ class ExamSeating{
         int target = getTotalStudentsForDay();// total seats needed for the day
         int capacityReached = 0;
         for (Room r : rooms) {
-            if(r==null) continue;//skip iteration for empty room
             // stop calculating rooms if capacity Reached is equal to or more than target
             // we have enough rooms so stop the loop immediately
             if (capacityReached >= target) {
                 break;
             }
-
-            int effectiveCap = r.getCapacity() / 2; //half capacity of room is used to maintain distancing
-            capacityReached += effectiveCap;    // add effective capacity of this room to the total capacity reached so far
-            needed.add(r);  // add this room to the list of needed rooms
-        }
-
+            if (r != null) {    //if room is not null, then calculate effective capacity and add to total capacity reached so far
+                int effectiveCap = r.getCapacity() / 2; //half capacity of room is used to maintain distancing
+                capacityReached += effectiveCap;    // add effective capacity of this room to the total capacity reached so far
+                needed.add(r);  // add this room to the list of needed rooms
+                }
+            }
             return needed;
-    }
+        }
         
-        //realistic day-wise seating plan generator
-        //added parameter for consistency with admin call
-        public void generateSeatingPlanForDay(ExamDaySchedule daySchedule) throws RoomCapacityException {
-            this.examDaySchedule = daySchedule;
+        // day-wise seating plan generator
+        public void generateSeatingPlanForDay() throws RoomCapacityException {
             if (examDaySchedule == null || examDaySchedule.getPaperCount() == 0) {
                 throw new RoomCapacityException("No papers scheduled for exam day.");
             }
-            
+            //clear previous seating plan if any before generating again to avoid duplicates in case this method is called multiple times for the same day
+            seatingPlan.clear();
             ExamPaper[] papers = examDaySchedule.getPapers();
-            ArrayList<Room> ExamRooms = getRoomsNeeded();
-            
-            
+            ExamRooms = getRoomsNeeded();   //store rooms needed in exam rooms for record
+            if (ExamRooms.isEmpty()) {
+                throw new RoomCapacityException("No rooms available for exam seating.");
+            }
             int roomIdx = 0;
             int seatIdx = 1; // 1 = Odd seats, 2 = Even seats
             int currentSeatInRoom = 1;
@@ -1634,7 +1711,10 @@ class ExamSeating{
                 Course currentCourse = paper.getCourse(); // Get course from the paper
                 // Loop through students of this paper
                 for (Student student : paper.getStudents()) {
-                    if (roomIdx >= ExamRooms.size()) break; // No more rooms available, stop assigning
+                    // Check if we have exhausted all rooms needed for this day (should not happen if getRoomsNeeded is working correctly, but added as a safety check)
+                    if (roomIdx >= ExamRooms.size()) {
+                        throw new RoomCapacityException("Not enough room capacity to seat all students for " + currentExamDate + ".");
+                    }
                     //fetch a room from the needed rooms list
                     Room currentRoom = ExamRooms.get(roomIdx);
 
@@ -1660,52 +1740,32 @@ class ExamSeating{
                 }
             }
         }// end of generate seating plan for day method
-        
-        // added method was missing but used in Admin
-    public void generateSeatingPlan() throws RoomCapacityException {
 
-        if (course == null || students == null || studentCount == 0) {
-            throw new RoomCapacityException("Invalid course or student data.");
-        }
-
-        int roomIdx = 0;
-        int currentSeat = 1;
-
-        for (int i = 0; i < studentCount; i++) {
-
-            // added proper error instead of silent failure
-            if (roomIdx >= rooms.length) {
-                throw new RoomCapacityException("Not enough rooms for students.");
+        //display the generated seating plan room wise
+        public void displaySeatingPlan() {
+            System.out.println("\n── Seating Plan for " + examDaySchedule.getDate() + " ──");
+            if (seatingPlan.isEmpty()) {
+                System.out.println("  No seating assignments generated yet.");
+                return;
             }
-
-            Room room = rooms[roomIdx];
-            Student student = students[i];
-
-            SeatingAssignment assignment = new SeatingAssignment(
-                    student,
-                    room,
-                    currentSeat,
-                    "N/A", // added placeholder date for legacy mode
-                    course
-            );
-
-            seatingPlan.add(assignment);
-            student.addExamAssignment(assignment);
-
-            currentSeat++;
-
-            if (currentSeat > room.getCapacity()) {
-                roomIdx++;
-                currentSeat = 1;
+            //transverse the seating plan and display room-wise seating arrangement with student names and course details
+            int currentRoomNumber = -1;
+            for (SeatingAssignment sa : seatingPlan) {
+                // safety check for nulls in seating assignment
+                if (sa == null || sa.getRoom() == null || sa.getStudent() == null || sa.getCourse() == null) {
+                    continue;
+                }
+                
+                // if we encounter a new room number, print the room header
+                int assignmentRoomNumber = sa.getRoom().getRoomNumber();
+                if (assignmentRoomNumber != currentRoomNumber) {
+                    currentRoomNumber = assignmentRoomNumber;
+                    System.out.println("\nRoom " + currentRoomNumber + ":");
+                }
+                // print the seat number, student name, student ID and course name for this assignment
+                System.out.println("  Seat " + sa.getSeatNumber()+ " -> " + sa.getStudent().getName()+ " (ID: " + sa.getStudent().getId() + ")"+ " | Course: " + sa.getCourse().getCourseName());
             }
         }
-    }
-
-    // 🔴 ADDED: optional but useful getter
-    public ArrayList<SeatingAssignment> getSeatingPlan() {
-        return seatingPlan;
-    }
-
 }//end of exam seating class
 
 // added AcademicSystem
@@ -1724,6 +1784,16 @@ class AcademicSystem {
     int roomCount = 0;
     // master timetable to store all the timetables
     Timetable timetable = new Timetable(); 
+    
+
+    //store all exam-day schedules created by admin
+    private ArrayList<ExamDaySchedule> examDaySchedules = new ArrayList<>();
+
+    //store generated seating plans (one Exam Seating object per day)
+    private ArrayList<ExamSeating> generatedExamSeatingPlans = new ArrayList<>();
+
+    //
+
     //adders check empty index and size or arrays
     public void addClass(AcadClass c) {
         if (c != null && classCount < classes.length) classes[classCount++] = c;
@@ -1736,6 +1806,106 @@ class AcademicSystem {
     }
     public void addRoom(Room r) {
         if (r != null && roomCount < rooms.length) rooms[roomCount++] = r;
+    }
+
+     Course findCourseByName(String courseName) {
+        if (courseName == null || courseName.isEmpty()) return null;
+        //loop through all classes and their curricula to find the course with this name and return it
+        for (int i = 0; i < classCount; i++) {
+            if (classes[i] != null && classes[i].findCourseByName(courseName) != null) {
+                return classes[i].findCourseByName(courseName);
+            }
+        }
+        System.out.println("Course '" + courseName + "' not found in any class.");
+        return null;
+    }
+
+    public ExamPaper createExamPaperForCourse(String  courseName) {
+        if (courseName == null || courseName.isEmpty()) return null;
+        Course course = findCourseByName(courseName);
+        //if course is not found in any class, return null and do not create paper
+        if (course == null) return null;
+        //if course is found, create a new paper for this course 
+        ExamPaper paper = new ExamPaper(course, this);  // create a new paper for this course and pass reference of system to it so that it can find students and classes for this paper
+        paper.FindClasses(); // automatically find which classes and students are taking this course and add them to the paper
+        return paper;
+    }
+
+
+    //create exam day schedule for a given date
+    public boolean createExamDaySchedule(String date) {
+        if (date == null || date.isEmpty()) {
+            System.out.println("Invalid date for exam schedule.");
+            return false;
+        }
+        for (ExamDaySchedule existing : examDaySchedules) {
+            if (existing != null && existing.getExamDate().equals(date)) {
+                System.out.println("Exam schedule already exists for date: " + date);
+                return false;
+            }
+        }
+        examDaySchedules.add(new ExamDaySchedule(date));    // create a new day schedule for this date and add it to the system storage for schedules
+        return true;
+    }
+    
+    //add a paper to a day schedule
+    public boolean addExamPaperToDaySchedule(ExamPaper paper, String date) {
+        if (paper == null || date == null || date.isEmpty()) {
+            System.out.println("Invalid paper or date.");
+            return false;
+        }
+        //find the day schedule for this date
+        for (ExamDaySchedule daySchedule : examDaySchedules) {
+            if (daySchedule.getExamDate().equals(date)) {
+                return daySchedule.addPaper(paper); // add this paper to the found day schedule
+            }
+        }
+        System.out.println("No exam schedule found for date: " + date);
+        return false; // no schedule found for this date
+    }
+        
+    //getter
+    public AcadClass[] getClasses() {
+        return classes;
+    }
+    public ArrayList<ExamDaySchedule> getExamDaySchedules() {
+        return examDaySchedules;
+    }
+    //search for a day schedule by date
+    public ExamDaySchedule findExamDayScheduleByDate(String date) {
+        for (ExamDaySchedule daySchedule : examDaySchedules) {
+            if (daySchedule.getExamDate().equals(date)) {
+                return daySchedule;
+            }
+        }
+        return null; // not found
+    }
+    // save generated seating plan for a day
+    public void addGeneratedExamSeatingPlan(ExamSeating seating) {
+        if (seating == null || seating.getExamDaySchedule() == null) {
+            return;
+        }
+        String date = seating.getExamDaySchedule().getDate();
+        for (int i = 0; i < generatedExamSeatingPlans.size(); i++) {
+            ExamSeating existing = generatedExamSeatingPlans.get(i);
+            if (existing != null
+                    && existing.getExamDaySchedule() != null
+                    && existing.getExamDaySchedule().getDate().equals(date)) {
+                generatedExamSeatingPlans.set(i, seating);
+                return;
+            }
+        }
+        generatedExamSeatingPlans.add(seating);
+    }
+
+    //getter
+    public ArrayList<ExamSeating> getGeneratedExamSeatingPlans() {
+        return generatedExamSeatingPlans;
+    }
+
+    //to regenerate from scratch for next exam cycle
+    public void clearGeneratedExamSeatingPlans() {
+        generatedExamSeatingPlans.clear();
     }
 }//end of AcademicSystem
 
@@ -2045,25 +2215,65 @@ class Admin extends User {
         MaintenanceService.showMaintenanceReports(sys);
     }
 
-    // NEW: Admin generates day-wise exam seating plan for all papers held on a date
-    public void generateExamSeatingPlan(ExamDaySchedule daySchedule, Room[] rooms) {
-        try {
-            ExamSeating seating = new ExamSeating(rooms);
-            seating.generateSeatingPlanForDay(daySchedule);
-        } catch (RoomCapacityException e) {
-            System.out.println("Exam seating failed: " + e.getMessage());
+    // admin creates an exam day in the academic system
+    public void CreateExamDay(AcademicSystem sys,String date) {
+        sys.createExamDaySchedule(date); // create a day schedule for this date and add it to the system
+    }
+    //create and add exam paper to a day schedule
+    public void CreateExamPaper(AcademicSystem sys,String courseName, String date) {
+        ExamPaper paper = sys.createExamPaperForCourse(courseName); // create a paper for this course and automatically find students and classes for this paper
+        if (paper != null) {
+            boolean added = sys.addExamPaperToDaySchedule(paper, date); // add this paper to the day schedule of this date
+            if (added) {
+                System.out.println("Created exam paper for " + courseName + " and added to schedule for " + date);
+            } else {
+                System.out.println("Failed to add exam paper for " + courseName + " to schedule for " + date);
+            }
+        } else {
+            System.out.println("Failed to create exam paper for " + courseName);
         }
     }
 
-    // legacy method retained for backward compatibility with old single-course flow
-    public void generateExamSeatingPlan(Course course, Room[] rooms, Student[] students, int studentCount) {
+    // generate and store seating for one day
+    public void generateExamSeatingPlanForDay(AcademicSystem sys,String date, Room[] rooms) {
+        //null checks
+        if (sys == null || date == null || rooms == null) {
+            System.out.println("Exam seating failed: invalid input for day-wise generation.");
+            return;
+        }
         try {
-            ExamSeating seating = new ExamSeating(course, rooms, students, studentCount);
-            seating.generateSeatingPlan();
-        } catch (RoomCapacityException e) {
-            System.out.println("Exam seating failed: " + e.getMessage());
+            // generate seating for this day
+            ExamDaySchedule daySchedule = sys.findExamDayScheduleByDate(date) ;
+                if (daySchedule == null) {
+                    System.out.println("Exam seating failed: No exam schedule found for date: " + date);
+                    return;
+                }
+                ExamSeating seating = new ExamSeating(daySchedule, rooms); // create a new seating object for this day with the found schedule and given rooms
+                seating.generateSeatingPlanForDay();
+            // store the generated seating plan in the system
+            sys.addGeneratedExamSeatingPlan(seating);
+            System.out.println("Generated and stored exam seating for date: " + daySchedule.getDate());
+        } 
+        catch (RoomCapacityException e) {
+            System.out.println("Exam seating failed for " + date + ": " + e.getMessage());
         }
     }
+    // display seating plan for a day
+    public void displayExamSeatingPlanForDay(AcademicSystem sys, String date) {
+        if (sys == null || date == null) {
+            System.out.println("Display failed: invalid input for day-wise seating display.");
+            return;
+        }
+        // find the generated seating plan for this day
+        for (ExamSeating seating : sys.getGeneratedExamSeatingPlans()) {
+            if (seating != null && seating.getExamDaySchedule().getDate().equals(date)) {
+                seating.displaySeatingPlan(); // display the seating plan for this day if found
+                return;
+            }
+        }
+        System.out.println("No generated seating plan found for date: " + date);
+    }
+    
 }//end of admin class
 
 public class Acadcore {
