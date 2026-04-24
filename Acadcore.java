@@ -1556,12 +1556,30 @@ class ExamSeating{
     private ExamDaySchedule examDaySchedule;
     private Room[] rooms;  // rooms in which exam can be held
     private ArrayList<SeatingAssignment>seatingPlan=new ArrayList<>(); // to store the final seating plan for the day
-
+    private Course course;//added to store the course
+    private Student[] students;//added to store the students for a particular exam
+    private int studentCount;//student count
+    
     // constructor
+    // required because Admin calls new ExamSeating(rooms)
+    public ExamSeating(Room[] rooms) {
+        this.rooms = rooms;
+    }
+
+    //existing constructor
     public ExamSeating(ExamDaySchedule examDaySchedule, Room[] rooms) {
         this.examDaySchedule = examDaySchedule;
         this.rooms = rooms;
     }
+
+    //needed for Admin method
+    public ExamSeating(Course course, Room[] rooms, Student[] students, int studentCount) {
+        this.course = course;
+        this.rooms = rooms;
+        this.students = students;
+        this.studentCount = studentCount;
+    }
+
 
     // count all students across all papers of the day to get total no of seats needed
     private int getTotalStudentsForDay() {
@@ -1579,28 +1597,33 @@ class ExamSeating{
         int target = getTotalStudentsForDay();// total seats needed for the day
         int capacityReached = 0;
         for (Room r : rooms) {
+            if(r==null) continue;//skip iteration for empty room
             // stop calculating rooms if capacity Reached is equal to or more than target
             // we have enough rooms so stop the loop immediately
             if (capacityReached >= target) {
                 break;
             }
-            if (r != null) {
-                int effectiveCap = r.getCapacity() / 2; //half capacity of room is used to maintain distancing
-                capacityReached += effectiveCap;    // add effective capacity of this room to the total capacity reached so far
-                needed.add(r);  // add this room to the list of needed rooms
-                }
-            }
-            return needed;
+
+            int effectiveCap = r.getCapacity() / 2; //half capacity of room is used to maintain distancing
+            capacityReached += effectiveCap;    // add effective capacity of this room to the total capacity reached so far
+            needed.add(r);  // add this room to the list of needed rooms
         }
+
+            return needed;
+    }
         
         //realistic day-wise seating plan generator
-        public void generateSeatingPlanForDay() throws RoomCapacityException {
+        //added parameter for consistency with admin call
+        public void generateSeatingPlanForDay(ExamDaySchedule daySchedule) throws RoomCapacityException {
+            this.examDaySchedule = daySchedule;
             if (examDaySchedule == null || examDaySchedule.getPaperCount() == 0) {
                 throw new RoomCapacityException("No papers scheduled for exam day.");
             }
             
             ExamPaper[] papers = examDaySchedule.getPapers();
             ArrayList<Room> ExamRooms = getRoomsNeeded();
+            
+            
             int roomIdx = 0;
             int seatIdx = 1; // 1 = Odd seats, 2 = Even seats
             int currentSeatInRoom = 1;
@@ -1637,6 +1660,52 @@ class ExamSeating{
                 }
             }
         }// end of generate seating plan for day method
+        
+        // added method was missing but used in Admin
+    public void generateSeatingPlan() throws RoomCapacityException {
+
+        if (course == null || students == null || studentCount == 0) {
+            throw new RoomCapacityException("Invalid course or student data.");
+        }
+
+        int roomIdx = 0;
+        int currentSeat = 1;
+
+        for (int i = 0; i < studentCount; i++) {
+
+            // added proper error instead of silent failure
+            if (roomIdx >= rooms.length) {
+                throw new RoomCapacityException("Not enough rooms for students.");
+            }
+
+            Room room = rooms[roomIdx];
+            Student student = students[i];
+
+            SeatingAssignment assignment = new SeatingAssignment(
+                    student,
+                    room,
+                    currentSeat,
+                    "N/A", // added placeholder date for legacy mode
+                    course
+            );
+
+            seatingPlan.add(assignment);
+            student.addExamAssignment(assignment);
+
+            currentSeat++;
+
+            if (currentSeat > room.getCapacity()) {
+                roomIdx++;
+                currentSeat = 1;
+            }
+        }
+    }
+
+    // 🔴 ADDED: optional but useful getter
+    public ArrayList<SeatingAssignment> getSeatingPlan() {
+        return seatingPlan;
+    }
+
 }//end of exam seating class
 
 // added AcademicSystem
