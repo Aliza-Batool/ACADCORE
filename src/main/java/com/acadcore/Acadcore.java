@@ -2390,19 +2390,20 @@ class Admin extends User {
 
 public class Acadcore {
 
-    public static void main(String[] args) {
-    // 1. Initialize Javalin and point it to your resources folder
+public static void main(String[] args) {
     io.javalin.Javalin app = io.javalin.Javalin.create(config -> {
-        // Location.EXTERNAL is used if you are running it from VS Code directly
-        config.staticFiles.add("./src/main/resources", io.javalin.http.staticfiles.Location.EXTERNAL);
+        config.staticFiles.add(staticFiles -> {
+            staticFiles.hostedPath = "/";
+            staticFiles.directory = "/public";
+            staticFiles.location = io.javalin.http.staticfiles.Location.CLASSPATH;
+        });
     }).start(3456);
 
-    // 2. Add the API bridge for your login button
     app.post("/api/login", ctx -> {
         System.out.println("Login button pressed!");
         ctx.json(java.util.Map.of("success", true, "message", "Java received the request!"));
     });
-    
+
     System.out.println("Open your browser at: http://localhost:3456");
 }
 
