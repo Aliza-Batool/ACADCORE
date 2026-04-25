@@ -1,17 +1,10 @@
-
 package com.acadcore;
 
-/**
- *
- * @author abist
- */
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- */
-
+import java.sql.SQLException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Scanner;
 
 //  EXCEPTIONS
 //added invalid password exception
@@ -1159,7 +1152,13 @@ class DeadlineManager {
         }
          //if all validations are passed then store the deadline reminder
         gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
-        System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
+        try {
+            FacultyDbService.insertDeadline(faculty, course, taskName, deadline);
+            System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
+        } catch (SQLException e) {
+            gradingDeadlines[--deadlineCount] = null;
+            System.out.println("Failed to save deadline to database: " + e.getMessage());
+        }
 
     }//end of set deadline method
 
@@ -1167,13 +1166,25 @@ class DeadlineManager {
     public void markDone(String courseName, String taskName) {
         for (int i = 0; i < deadlineCount; i++) {
             if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
+                GradingDeadline removed = gradingDeadlines[i];
                 // Shift left to fill the gap
                 for (int j = i; j < deadlineCount - 1; j++)
                     gradingDeadlines[j] = gradingDeadlines[j + 1];
 
                 gradingDeadlines[--deadlineCount] = null;  // clear last slot
-                System.out.println("Marked done: [" + courseName + "] " + taskName);
-                return;
+                try {
+                    FacultyDbService.markDeadlineDone(faculty, courseName, taskName);
+                    System.out.println("Marked done: [" + courseName + "] " + taskName);
+                    return;
+                } catch (SQLException e) {
+                    for (int j = deadlineCount; j > i; j--) {
+                        gradingDeadlines[j] = gradingDeadlines[j - 1];
+                    }
+                    gradingDeadlines[i] = removed;
+                    deadlineCount++;
+                    System.out.println("Failed to update deadline status in database: " + e.getMessage());
+                    return;
+                }
             }
         }
         System.out.println("Failed: No deadline found for '" + taskName + "' in '" + courseName + "'.");
@@ -1189,6 +1200,31 @@ class DeadlineManager {
             System.out.println("  [" + gradingDeadlines[i].getCourse().getCourseName() + "] "+ gradingDeadlines[i].getTaskTitle() + " → Due: "+ gradingDeadlines[i].getDeadline());
         }
     }//end of show pending deadlines method
+
+    //method to clear loaded deadlines (for example when faculty logs out or when reloading from database)
+    public void clearLoadedDeadlines() {
+        for (int i = 0; i < gradingDeadlines.length; i++) {
+            gradingDeadlines[i] = null;
+        }
+        deadlineCount = 0;
+    }
+
+    public void loadDeadlineFromDatabase(Course course, String taskName, String deadline) {
+        if (course == null || taskName == null || deadline == null) {
+            return;
+        }
+        if (deadlineCount >= capacity) {
+            return;
+        }
+        for (int i = 0; i < deadlineCount; i++) {
+            if (gradingDeadlines[i] != null
+                    && gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(course.getCourseName())
+                    && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
+                return;
+            }
+        }
+        gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
+    }
 }//end of class deadline manager
 
 class Faculty extends User {
@@ -1301,6 +1337,44 @@ class Faculty extends User {
     public void addToSchedule(ScheduledClass sc) {
         schedule[bookedCount - 1] = sc; // bookedCount already incremented in bookSlot method, so the current class should be added at bookedCount - 1 index
         }
+        //method to clear loaded schedule (for example when faculty logs out or when reloading from database)
+    void clearLoadedSchedule() {
+        for (int i = 0; i < assignedCourses.length; i++) {
+            assignedCourses[i] = null;
+        }
+        for (int i = 0; i < bookedSlots.length; i++) {
+            bookedSlots[i] = null;
+        }
+        for (int i = 0; i < schedule.length; i++) {
+            schedule[i] = null;
+        }
+        courseCount = 0;
+        bookedCount = 0;
+    }
+
+    void loadScheduledClassFromDatabase(ScheduledClass sc) {
+        if (sc == null) {
+            return;
+        }
+        Course course = sc.getCourse();
+        if (course != null && getAssignedCourse(course.getCourseName()) == null && courseCount < assignedCourses.length) {
+            assignedCourses[courseCount++] = course;
+            course.setAssignedFaculty(this);
+        }
+        if (bookedCount < bookedSlots.length) {
+            bookedSlots[bookedCount] = sc.getSlot();
+            schedule[bookedCount] = sc;
+            bookedCount++;
+        }
+    }
+
+    void clearLoadedDeadlines() {
+        deadlineManager.clearLoadedDeadlines();
+    }
+
+    void loadDeadlineFromDatabase(Course course, String taskName, String deadline) {
+        deadlineManager.loadDeadlineFromDatabase(course, taskName, deadline);
+    }
 
     //method to view teaching schedule of the faculty
     public void viewTeachingSchedule() {
@@ -1369,6 +1443,11 @@ class Faculty extends User {
     //makeup request method
     public void requestMakeup(String courseCode, String reason) {
         System.out.println("Makeup request by " + getName() +" for " + courseCode + ": " + reason);
+        try {
+            FacultyDbService.insertMakeupRequest(this, courseCode, reason);
+        } catch (SQLException e) {
+            System.out.println("Failed to save makeup request to database: " + e.getMessage());
+        }
     }//end of makeup request method(made it basic,more implementation to be done in admin module for approval and tracking)
 
      @Override
@@ -2389,22 +2468,7 @@ class Admin extends User {
 }//end of admin class
 
 public class Acadcore {
-
-public static void main(String[] args) {
-    io.javalin.Javalin app = io.javalin.Javalin.create(config -> {
-        config.staticFiles.add(staticFiles -> {
-            staticFiles.hostedPath = "/";
-            staticFiles.directory = "/public";
-            staticFiles.location = io.javalin.http.staticfiles.Location.CLASSPATH;
-        });
-    }).start(3456);
-
-    app.post("/api/login", ctx -> {
-        System.out.println("Login button pressed!");
-        ctx.json(java.util.Map.of("success", true, "message", "Java received the request!"));
-    });
-
-    System.out.println("Open your browser at: http://localhost:3456");
-}
-
+    public static void main(String[] args) {
+        AcadcoreWebApp.start(3456);
+    }
 }
