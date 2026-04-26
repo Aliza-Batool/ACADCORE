@@ -323,15 +323,27 @@
         </div>
         <div id="student-assignments" class="student-section" style="display:none;margin-top:32px;">
           <div class="section-header"><i data-lucide="list"></i>Assignment Prioritizer</div>
-          <div class="card-container"><div class="table-responsive"><table>
-            <thead><tr><th>Course</th><th>Assignment</th><th>Due In</th><th>Weight %</th><th>Priority</th></tr></thead>
-            <tbody>
-              <tr><td>CS201</td><td>Tree Traversal Implementation</td><td>2 days</td><td>15%</td><td><span class="badge badge-danger">URGENT</span></td></tr>
-              <tr><td>CS301</td><td>React Component Design</td><td>5 days</td><td>12%</td><td><span class="badge badge-warning">MEDIUM</span></td></tr>
-              <tr><td>CS101</td><td>Sorting Algorithms Quiz</td><td>8 days</td><td>10%</td><td><span class="badge badge-success">SAFE</span></td></tr>
-            </tbody>
-          </table></div></div>
-        </div>
+          <div class="card-container" style="margin-bottom:20px;">
+            <h3 style="font-weight:600;color:#0A1628;margin-bottom:16px;font-size:15px;">Add Assignment</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+              <div><label style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Course</label>
+                <input type="text" id="asgn-course" placeholder="e.g. CS201" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></div>
+                <div><label style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Title</label>
+                  <input type="text" id="asgn-title" placeholder="Assignment title" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></div>
+                  <div><label style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Days Until Due</label>
+                    <input type="number" id="asgn-days" min="1" placeholder="e.g. 5" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></div>
+                    <div><label style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Weight %</label>
+                      <input type="number" id="asgn-weight" min="1" max="100" placeholder="e.g. 15" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></div>
+                    </div>
+                    <button class="action-btn" style="margin-top:12px;" onclick="apiAddAssignment()"><i data-lucide="plus"></i>Add Assignment</button>
+                  </div>
+                  <div class="card-container">
+                    <div class="table-responsive"><table>
+                      <thead><tr><th>Course</th><th>Assignment</th><th>Due In</th><th>Weight %</th><th>Priority</th><th>Action</th></tr></thead>
+                      <tbody id="assignments-tbody"><tr><td colspan="6" style="text-align:center;color:#999;">Loading...</td></tr></tbody>
+                    </table></div>
+                  </div>
+                </div>
         <div id="student-timetable" class="student-section" style="display:none;margin-top:32px;">
           <div class="section-header"><i data-lucide="calendar"></i>My Class Timetable</div>
           <div class="timetable-grid">
@@ -551,6 +563,7 @@
     if (data.success) {
       session.name = data.name;
       session.role = data.role;
+      session.email = email;
       closeLoginModal();
       showDashboard(data.role, data.name);
     } else {
@@ -620,6 +633,7 @@
     document.querySelectorAll('#student-dashboard .nav-item').forEach(n => n.classList.remove('active'));
     if (el) el.classList.add('active');
     if (section === 'clashes') loadClashDetection();
+    if (section === 'assignments') loadAssignments();
     lucide.createIcons();
   }
   function switchFacultySection(section, el) {
@@ -822,6 +836,44 @@
         <div style="font-size:16px;font-weight:600;color:#27AE60;margin-bottom:4px;">No clashes detected</div>
         <div style="font-size:13px;color:#666;">Your schedule is clear and optimized</div></div>`;
     }
+  }
+
+  async function loadAssignments() {
+    const email = session.name; // replace with session.email if you store it
+    const data = await api('GET', '/api/student/assignments?email=' + encodeURIComponent(session.email));
+    const tbody = document.getElementById('assignments-tbody');
+    if (!Array.isArray(data) || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">No assignments found.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map(a => `
+        <tr>
+            <td>${a.courseName}</td>
+            <td>${a.title}</td>
+            <td>${a.daysUntilDue} days</td>
+            <td>${a.weightPercent}%</td>
+            <td><span class="badge ${a.daysUntilDue <= 3 ? 'badge-danger' : a.daysUntilDue <= 7 ? 'badge-warning' : 'badge-success'}">${a.daysUntilDue <= 3 ? 'High' : a.daysUntilDue <= 7 ? 'Medium' : 'Low'}</span></td>
+            <td><button onclick="apiRemoveAssignment('${a.courseName}','${a.title}')" style="background:#E74C3C;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600;">Remove</button></td>
+        </tr>`).join('');
+  }
+
+  async function apiAddAssignment() {
+      const courseName   = document.getElementById('asgn-course').value;
+      const title        = document.getElementById('asgn-title').value;
+      const daysUntilDue = parseInt(document.getElementById('asgn-days').value);
+      const weightPercent= parseInt(document.getElementById('asgn-weight').value);
+      if (!courseName || !title || !daysUntilDue || !weightPercent) {
+          showToast('Please fill in all fields.', 'error'); return;
+      }
+      const data = await api('POST', '/api/student/assignments/add', { email: session.email, courseName, title, daysUntilDue, weightPercent });
+      showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success) loadAssignments();
+  }
+
+  async function apiRemoveAssignment(courseName, title) {
+      const data = await api('POST', '/api/student/assignments/remove', { email: session.email, courseName, title });
+      showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success) loadAssignments();
   }
 
   /* ── INIT ────────────────────────────────────────────────────────── */

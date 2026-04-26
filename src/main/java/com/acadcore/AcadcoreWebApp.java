@@ -53,6 +53,55 @@ final class AcadcoreWebApp {
                 "hasClash", false,
                 "message", "No clashes detected"
         )));
+
+        app.get("/api/student/assignments", ctx -> {
+            String email = ctx.queryParam("email");
+            try {
+                User user = UserDao.findUserByEmail(email);
+                if (!(user instanceof Student student)) {
+                    ctx.json(Map.of("success", false, "message", "Student not found."));
+                    return;
+                }
+                StudentDAO dao = new StudentDAO();
+                var rows = dao.getAssignments(student.getId());
+                ctx.json(rows);
+            } catch (Exception ex) {
+                ctx.json(Map.of("success", false, "message", ex.getMessage()));
+            }
+        });
+
+        app.post("/api/student/assignments/add", ctx -> {
+            record AddReq(String email, String courseName, String title, int daysUntilDue, int weightPercent) {}
+            AddReq req = ctx.bodyAsClass(AddReq.class);
+            try {
+                User user = UserDao.findUserByEmail(req.email());
+                if (!(user instanceof Student student)) {
+                    ctx.json(Map.of("success", false, "message", "Student not found."));
+                    return;
+                }
+                Assignment a = new Assignment(req.courseName(), req.title(), req.daysUntilDue(), req.weightPercent());
+                new StudentDAO().insertAssignment(student.getId(), a);
+                ctx.json(Map.of("success", true, "message", "Assignment added."));
+            } catch (Exception ex) {
+                ctx.json(Map.of("success", false, "message", ex.getMessage()));
+            }
+        });
+
+        app.post("/api/student/assignments/remove", ctx -> {
+            record RemoveReq(String email, String courseName, String title) {}
+            RemoveReq req = ctx.bodyAsClass(RemoveReq.class);
+            try {
+                User user = UserDao.findUserByEmail(req.email());
+                if (!(user instanceof Student student)) {
+                    ctx.json(Map.of("success", false, "message", "Student not found."));
+                    return;
+                }
+                boolean removed = new StudentDAO().removeAssignment(student.getId(), req.courseName(), req.title());
+                ctx.json(Map.of("success", removed, "message", removed ? "Removed." : "Assignment not found."));
+            } catch (Exception ex) {
+                ctx.json(Map.of("success", false, "message", ex.getMessage()));
+            }
+        });
     }
 
     private static Map<String, Object> handleLogin(LoginRequest request) {

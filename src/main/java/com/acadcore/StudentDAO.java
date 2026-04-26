@@ -10,7 +10,7 @@ import java.util.List;
 @SuppressWarnings("unused")
 final class StudentDAO {
     @SuppressWarnings("unused")
-    private StudentDAO() {
+    StudentDAO() {
     }
 
     public List<AcademicClassRow> getStudentClassLinks(int studentId) throws SQLException {
