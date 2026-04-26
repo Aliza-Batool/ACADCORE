@@ -430,6 +430,33 @@ class Student extends User{
             assignments[assignmentCount++] = a;//stores assignment on the first available index and then increments the count for next assignment
         }
     }
+
+    // Added after the existing addAssignment() method (around line 428)
+
+    public boolean removeAssignment(String courseName, String title) {
+        for (int i = 0; i < assignmentCount; i++) {
+            if (assignments[i] != null
+                    && assignments[i].getCourseName().equalsIgnoreCase(courseName)
+                    && assignments[i].getTitle().equalsIgnoreCase(title)) {
+                for (int j = i; j < assignmentCount - 1; j++) {
+                    assignments[j] = assignments[j + 1];
+                }
+                assignments[--assignmentCount] = null;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Assignment[] getAssignmentsCopy() {
+        Assignment[] copy = new Assignment[assignmentCount];
+        System.arraycopy(assignments, 0, copy, 0, assignmentCount);
+        return copy;
+    }
+
+    public int getAssignmentCount() {
+        return assignmentCount;
+    }
     
     //assignment prioritizer
     public void showPrioritizedAssignments() {

@@ -93,6 +93,44 @@ final class StudentDAO {
         }
     }
 
+    /**
+     * FIX 1 – Assignment Prioritizer: "remove assignment when done"
+     * Deletes the assignment row matching the student, course name, and title.
+     * Returns true if a row was actually deleted.
+     */
+    public boolean removeAssignment(int studentId, String courseName, String title) throws SQLException {
+        String sql = "DELETE FROM assignments WHERE student_id = ? AND course_name = ? AND title = ? LIMIT 1";
+        try (Connection con = Db.getConnection(); PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, studentId);
+            ps.setString(2, courseName);
+            ps.setString(3, title);
+            int affected = ps.executeUpdate();
+            return affected > 0; // true means the row existed and was deleted
+        }
+    }
+
+    public List<GroupMemberRow> getStudyGroupMembers(int groupId) throws SQLException {
+    String sql = "SELECT s.user_id, s.name, s.email "
+            + "FROM study_group_members sgm "
+            + "JOIN students s ON s.user_id = sgm.student_id "
+            + "WHERE sgm.group_id = ? "
+            + "ORDER BY s.name";
+    List<GroupMemberRow> rows = new ArrayList<>();
+    try (Connection con = Db.getConnection(); PreparedStatement ps = con.prepareStatement(sql)) {
+        ps.setInt(1, groupId);
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                rows.add(new GroupMemberRow(
+                        rs.getInt("user_id"),
+                        rs.getString("name"),
+                        rs.getString("email")
+                ));
+            }
+        }
+    }
+    return rows;
+}
+
     public List<AttendanceRow> getAttendanceRecords(int studentId) throws SQLException {
         String sql = "SELECT course_name, attended_classes, total_classes FROM attendance_records WHERE student_id = ? ORDER BY course_name";
         List<AttendanceRow> rows = new ArrayList<>();
@@ -131,6 +169,7 @@ final class StudentDAO {
         }
         return rows;
     }
+
 
     public int insertStudyGroup(StudyGroup group, int creatorId) throws SQLException {
         String sql = "INSERT INTO study_groups (course_code, course_name, max_size, creator_id, creator_name) VALUES (?, ?, ?, ?, ?)";
@@ -286,6 +325,18 @@ final class StudentDAO {
             this.maxSize = maxSize;
             this.creatorId = creatorId;
             this.creatorName = creatorName;
+        }
+    }
+        @SuppressWarnings("unused")
+    static final class GroupMemberRow {
+        final int id;
+        final String name;
+        final String email;
+
+        GroupMemberRow(int id, String name, String email) {
+            this.id    = id;
+            this.name  = name;
+            this.email = email;
         }
     }
 }

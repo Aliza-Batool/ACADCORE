@@ -17,28 +17,27 @@ final class StudentMenu {
         while (true) {
             System.out.println("\n── Student Menu for " + student.getName() + " ──");
             System.out.println("1. View Personal Timetable");
-            System.out.println("2. Detect Course or Exam Clashes");
-            System.out.println("3. Use Assignment Prioritizer");
-            System.out.println("4. Get Attendance Risk Alerts");
-            System.out.println("5. Join or Create Smart Study Group");
-            System.out.println("6. Logout");
+            System.out.println("2. Use Assignment Prioritizer");
+            //fix 4 removed student clash detection 
+            System.out.println("3. Get Attendance Risk Alerts");
+            System.out.println("4. Join or Create Smart Study Group");
+            System.out.println("5. Logout");
             System.out.print("Choose an option: ");
 
             String choice = sc.nextLine().trim();
             switch (choice) {
                 case "1" -> viewTimetable(student, dao);
-                case "2" -> detectClashes(student, dao);
-                case "3" -> assignmentPrioritizer(student, sc, dao);
-                case "4" -> attendanceRiskAlerts(student, dao);
-                case "5" -> studyGroupMenu(student, sc, dao);
-                case "6" -> {
+                case "2" -> assignmentPrioritizer(student, sc, dao);
+                case "3" -> attendanceRiskAlerts(student, dao);
+                case "4" -> studyGroupMenu(student, sc, dao);
+                case "5" -> {
                     return;
                 }
                 default -> System.out.println("Invalid choice.");
             }
         }
     }
-
+//fix 2: shows all 9-5 slots even when free
     private static void viewTimetable(Student student, StudentDAO dao) {
         try {
             StudentDAO.AcademicClassRow row = firstClassRow(dao.getStudentClassLinks(student.getId()));
@@ -49,29 +48,63 @@ final class StudentMenu {
 
             AcadClass acadClass = new AcadClass(row.batchNo, row.major, row.section, row.semester);
             student.setClass(acadClass);
-            for (StudentDAO.ScheduledClassRow scheduledRow : dao.getScheduledClasses(student.getId())) {
+
+            // Load all scheduled classes from the DB into the AcadClass object
+            List<StudentDAO.ScheduledClassRow> scheduledRows = dao.getScheduledClasses(student.getId());
+            for (StudentDAO.ScheduledClassRow scheduledRow : scheduledRows) {
                 ScheduledClass scheduledClass = buildScheduledClass(scheduledRow, acadClass);
                 if (scheduledClass != null) {
                     acadClass.addToClassSchedule(scheduledClass);
                 }
             }
-            student.viewMyClassSchedule();
+
+            // ── Print the full 9-to-17 grid ──────────────────────────────────────────
+            String[] days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
+            // Hour slots: 09:00-10:00, 10:00-11:00, ... 16:00-17:00
+            int[] startHours = {9, 10, 11, 12, 13, 14, 15, 16};
+
+            System.out.println("\n── Timetable: " + row.major + "-" + row.batchNo + row.section
+                    + " (Sem " + row.semester + ") ──");
+            System.out.printf("%-12s", "Time");
+            for (String day : days) {
+                System.out.printf("  %-18s", day);
+            }
+            System.out.println();
+            System.out.println("─".repeat(12 + days.length * 20));
+
+            ScheduledClass[] schedule = acadClass.getClassSchedule();
+            int schedCount = acadClass.getClassScheduleCount();
+
+            for (int hour : startHours) {
+                // Time label for this row, e.g. "09:00-10:00"
+                System.out.printf("%-12s", String.format("%02d:00-%02d:00", hour, hour + 1));
+
+                for (String day : days) {
+                    // Find a scheduled class that falls on this day and overlaps this hour
+                    String cell = "-- FREE --";
+                    for (int k = 0; k < schedCount; k++) {
+                        ScheduledClass sc = schedule[k];
+                        if (sc == null || sc.getSlot() == null) continue;
+                        TimeSlot slot = sc.getSlot();
+                        if (!day.equalsIgnoreCase(slot.getDay())) continue;
+                        // Check that the class occupies some part of this 1-hour slot
+                        int classStart = slot.getStartTime().getHour();
+                        int classEnd   = slot.getEndTime().getHour();
+                        if (classStart <= hour && classEnd > hour) {
+                            // Truncate long course names to 18 chars so the table stays aligned
+                            String name = sc.getCourse().getCourseName();
+                            if (name.length() > 16) name = name.substring(0, 15) + "…";
+                            cell = name;
+                            break;
+                        }
+                    }
+                    System.out.printf("  %-18s", cell);
+                }
+                System.out.println();
+            }
+
         } catch (SQLException | IllegalArgumentException ex) {
             System.out.println("Failed to load timetable: " + ex.getMessage());
-        }
-    }
-
-    private static void detectClashes(Student student, StudentDAO dao) {
-        try {
-            List<StudentDAO.ScheduledClassRow> rows = dao.getScheduledClasses(student.getId());
-            TimeSlot[] slots = new TimeSlot[rows.size()];
-            for (int i = 0; i < rows.size(); i++) {
-                StudentDAO.ScheduledClassRow row = rows.get(i);
-                slots[i] = new TimeSlot(dayToChoice(row.dayOfWeek), row.startHour, row.startMinute, row.endHour, row.endMinute);
-            }
-            student.detectClash(slots);
-        } catch (SQLException | IllegalArgumentException ex) {
-            System.out.println("Failed to detect clashes: " + ex.getMessage());
         }
     }
 
@@ -79,6 +112,8 @@ final class StudentMenu {
         try {
             loadStudentCourses(student, dao);
             loadAssignments(student, dao);
+
+            // ── ADD a new assignment ─────────────────────────────────────────────────
             System.out.print("Add a new assignment? (y/n): ");
             if (sc.nextLine().trim().equalsIgnoreCase("y")) {
                 System.out.print("Course name: ");
@@ -92,10 +127,54 @@ final class StudentMenu {
                 Assignment assignment = new Assignment(courseName, title, daysUntilDue, weightPercent);
                 student.addAssignment(assignment);
                 dao.insertAssignment(student.getId(), assignment);
+                System.out.println("Assignment added.");
             }
+
+            // Show the prioritized list first so the student can see what to remove
             student.showPrioritizedAssignments();
+
+            // ── REMOVE a completed assignment ────────────────────────────────────────
+            if (student.getAssignmentCount() == 0) {
+                return; // nothing to remove
+            }
+            System.out.print("\nMark an assignment as done / remove it? (y/n): ");
+            if (!sc.nextLine().trim().equalsIgnoreCase("y")) {
+                return;
+            }
+
+            // Build a numbered list of current assignments so the user can pick one
+            Assignment[] current = student.getAssignmentsCopy(); // returns defensive copy
+            if (current.length == 0) {
+                System.out.println("No assignments to remove.");
+                return;
+            }
+            System.out.println("Select assignment to remove:");
+            for (int i = 0; i < current.length; i++) {
+                System.out.printf("  %d. [%s] %s%n", i + 1, current[i].getCourseName(), current[i].getTitle());
+            }
+            System.out.print("Enter number: ");
+            int idx;
+            try {
+                idx = Integer.parseInt(sc.nextLine().trim()) - 1;
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input.");
+                return;
+            }
+            if (idx < 0 || idx >= current.length) {
+                System.out.println("Invalid selection.");
+                return;
+            }
+            Assignment toRemove = current[idx];
+            // Remove from DB first, then from the in-memory Student object
+            boolean removedFromDb = dao.removeAssignment(student.getId(),
+                    toRemove.getCourseName(), toRemove.getTitle());
+            student.removeAssignment(toRemove.getCourseName(), toRemove.getTitle());
+            System.out.println(removedFromDb
+                    ? "Assignment \"" + toRemove.getTitle() + "\" removed."
+                    : "Assignment removed from view (not found in DB — may have already been deleted).");
+
         } catch (SQLException | NumberFormatException ex) {
-            System.out.println("Failed to load assignments: " + ex.getMessage());
+            System.out.println("Failed to process assignments: " + ex.getMessage());
         }
     }
 
@@ -113,7 +192,7 @@ final class StudentMenu {
             System.out.println("Failed to load attendance data: " + ex.getMessage());
         }
     }
-
+//fix 3: joines and shows details of members
     private static void studyGroupMenu(Student student, Scanner sc, StudentDAO dao) {
         System.out.println("1. Create a group");
         System.out.println("2. Join a group");
@@ -122,6 +201,7 @@ final class StudentMenu {
 
         try {
             if ("1".equals(choice)) {
+                // ── CREATE ───────────────────────────────────────────────────────────
                 loadStudentCourses(student, dao);
                 System.out.print("Course code: ");
                 int courseCode = Integer.parseInt(sc.nextLine().trim());
@@ -134,40 +214,98 @@ final class StudentMenu {
                 }
                 StudyGroup group = new StudyGroup(course, maxSize, student);
                 int groupId = dao.insertStudyGroup(group, student.getId());
-                System.out.println(groupId > 0 ? "Study group created." : "Study group creation failed.");
+                if (groupId > 0) {
+                    // Also insert the creator as the first member so getStudyGroupMembers works
+                    dao.insertStudyGroupMember(groupId, student.getId());
+                    System.out.println("Study group created. Members so far:");
+                    printGroupMembers(groupId, dao);
+                } else {
+                    System.out.println("Study group creation failed.");
+                }
+
             } else if ("2".equals(choice)) {
+                // ── JOIN ─────────────────────────────────────────────────────────────
                 loadStudentCourses(student, dao);
                 List<StudentDAO.StudyGroupRow> groups = dao.getStudyGroups(student.getId());
                 if (groups.isEmpty()) {
                     System.out.println("No available groups.");
                     return;
                 }
+
+                // Print the group list with a short summary
                 for (int i = 0; i < groups.size(); i++) {
-                    StudentDAO.StudyGroupRow row = groups.get(i);
-                    System.out.println((i + 1) + ". " + row.courseName + " | size limit " + row.maxSize + " | leader " + row.creatorName);
+                    StudentDAO.StudyGroupRow grpRow = groups.get(i);
+                    System.out.printf("%d. [%s] max %d members | leader: %s%n",
+                            i + 1, grpRow.courseName, grpRow.maxSize, grpRow.creatorName);
                 }
-                System.out.print("Choose a group: ");
-                int index = Integer.parseInt(sc.nextLine().trim()) - 1;
+                System.out.println("Enter group number to join, or type 'details <number>' to see members first:");
+                String input = sc.nextLine().trim();
+
+                // Allow the student to inspect members before committing
+                while (input.toLowerCase().startsWith("details")) {
+                    String[] parts = input.split("\\s+");
+                    if (parts.length == 2) {
+                        try {
+                            int detailIdx = Integer.parseInt(parts[1]) - 1;
+                            if (detailIdx >= 0 && detailIdx < groups.size()) {
+                                printGroupMembers(groups.get(detailIdx).groupId, dao);
+                            } else {
+                                System.out.println("Invalid group number.");
+                            }
+                        } catch (NumberFormatException e) {
+                            System.out.println("Usage: details <number>");
+                        }
+                    }
+                    System.out.print("Enter group number to join (or 'details <number>'): ");
+                    input = sc.nextLine().trim();
+                }
+
+                int index;
+                try {
+                    index = Integer.parseInt(input) - 1;
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid input.");
+                    return;
+                }
                 if (index < 0 || index >= groups.size()) {
                     System.out.println("Invalid selection.");
                     return;
                 }
-                StudentDAO.StudyGroupRow row = groups.get(index);
-                Course course = findCourse(student, row.courseCode);
+
+                StudentDAO.StudyGroupRow grpRow = groups.get(index);
+                Course course = findCourse(student, grpRow.courseCode);
                 if (course == null) {
                     System.out.println("You are not enrolled in that course.");
                     return;
                 }
-                Student leader = student;
-                StudyGroup group = new StudyGroup(course, row.maxSize, leader);
+                // Build a transient StudyGroup object just to call addMember (which validates)
+                StudyGroup group = new StudyGroup(course, grpRow.maxSize, student);
                 if (group.addMember(student)) {
-                    dao.insertStudyGroupMember(row.groupId, student.getId());
+                    dao.insertStudyGroupMember(grpRow.groupId, student.getId());
+                    System.out.println("You have joined the group! Current members:");
+                    // FIX 3 core: print the full member list so the student can see who else is in
+                    printGroupMembers(grpRow.groupId, dao);
                 }
             }
         } catch (SQLException | NumberFormatException ex) {
             System.out.println("Study group action failed: " + ex.getMessage());
         }
     }
+
+    //fix 3 helper
+    private static void printGroupMembers(int groupId, StudentDAO dao) throws SQLException {
+        List<StudentDAO.GroupMemberRow> members = dao.getStudyGroupMembers(groupId);
+        if (members.isEmpty()) {
+            System.out.println("  (no members yet)");
+            return;
+        }
+        System.out.println("  Members:");
+        for (int i = 0; i < members.size(); i++) {
+            StudentDAO.GroupMemberRow m = members.get(i);
+            System.out.printf("    %d. %s  <%s>%n", i + 1, m.name, m.email);
+        }
+    }
+
 
     private static void loadStudentCourses(Student student, StudentDAO dao) throws SQLException {
         for (StudentDAO.CourseRow row : dao.getStudentCourses(student.getId())) {
@@ -253,5 +391,6 @@ final class StudentMenu {
             default -> 1;
         };
     }
+
 
 }
