@@ -1,10 +1,27 @@
 package com.acadcore;
 
-import java.sql.SQLException;
+/**
+ *
+ * @author abist
+ */
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ */
+
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Scanner;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.io.IOException;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 //  EXCEPTIONS
 //added invalid password exception
@@ -429,33 +446,6 @@ class Student extends User{
         if (assignmentCount < assignments.length) {
             assignments[assignmentCount++] = a;//stores assignment on the first available index and then increments the count for next assignment
         }
-    }
-
-    // Added after the existing addAssignment() method (around line 428)
-
-    public boolean removeAssignment(String courseName, String title) {
-        for (int i = 0; i < assignmentCount; i++) {
-            if (assignments[i] != null
-                    && assignments[i].getCourseName().equalsIgnoreCase(courseName)
-                    && assignments[i].getTitle().equalsIgnoreCase(title)) {
-                for (int j = i; j < assignmentCount - 1; j++) {
-                    assignments[j] = assignments[j + 1];
-                }
-                assignments[--assignmentCount] = null;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public Assignment[] getAssignmentsCopy() {
-        Assignment[] copy = new Assignment[assignmentCount];
-        System.arraycopy(assignments, 0, copy, 0, assignmentCount);
-        return copy;
-    }
-
-    public int getAssignmentCount() {
-        return assignmentCount;
     }
     
     //assignment prioritizer
@@ -1179,13 +1169,7 @@ class DeadlineManager {
         }
          //if all validations are passed then store the deadline reminder
         gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
-        try {
-            FacultyDbService.insertDeadline(faculty, course, taskName, deadline);
-            System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
-        } catch (SQLException e) {
-            gradingDeadlines[--deadlineCount] = null;
-            System.out.println("Failed to save deadline to database: " + e.getMessage());
-        }
+        System.out.println("Deadline set: [" + courseName + "] " + taskName + " → " + deadline);
 
     }//end of set deadline method
 
@@ -1193,25 +1177,13 @@ class DeadlineManager {
     public void markDone(String courseName, String taskName) {
         for (int i = 0; i < deadlineCount; i++) {
             if (gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(courseName) && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
-                GradingDeadline removed = gradingDeadlines[i];
                 // Shift left to fill the gap
                 for (int j = i; j < deadlineCount - 1; j++)
                     gradingDeadlines[j] = gradingDeadlines[j + 1];
 
                 gradingDeadlines[--deadlineCount] = null;  // clear last slot
-                try {
-                    FacultyDbService.markDeadlineDone(faculty, courseName, taskName);
-                    System.out.println("Marked done: [" + courseName + "] " + taskName);
-                    return;
-                } catch (SQLException e) {
-                    for (int j = deadlineCount; j > i; j--) {
-                        gradingDeadlines[j] = gradingDeadlines[j - 1];
-                    }
-                    gradingDeadlines[i] = removed;
-                    deadlineCount++;
-                    System.out.println("Failed to update deadline status in database: " + e.getMessage());
-                    return;
-                }
+                System.out.println("Marked done: [" + courseName + "] " + taskName);
+                return;
             }
         }
         System.out.println("Failed: No deadline found for '" + taskName + "' in '" + courseName + "'.");
@@ -1227,31 +1199,6 @@ class DeadlineManager {
             System.out.println("  [" + gradingDeadlines[i].getCourse().getCourseName() + "] "+ gradingDeadlines[i].getTaskTitle() + " → Due: "+ gradingDeadlines[i].getDeadline());
         }
     }//end of show pending deadlines method
-
-    //method to clear loaded deadlines (for example when faculty logs out or when reloading from database)
-    public void clearLoadedDeadlines() {
-        for (int i = 0; i < gradingDeadlines.length; i++) {
-            gradingDeadlines[i] = null;
-        }
-        deadlineCount = 0;
-    }
-
-    public void loadDeadlineFromDatabase(Course course, String taskName, String deadline) {
-        if (course == null || taskName == null || deadline == null) {
-            return;
-        }
-        if (deadlineCount >= capacity) {
-            return;
-        }
-        for (int i = 0; i < deadlineCount; i++) {
-            if (gradingDeadlines[i] != null
-                    && gradingDeadlines[i].getCourse().getCourseName().equalsIgnoreCase(course.getCourseName())
-                    && gradingDeadlines[i].getTaskTitle().equalsIgnoreCase(taskName)) {
-                return;
-            }
-        }
-        gradingDeadlines[deadlineCount++] = new GradingDeadline(course, taskName, deadline);
-    }
 }//end of class deadline manager
 
 class Faculty extends User {
@@ -1364,44 +1311,6 @@ class Faculty extends User {
     public void addToSchedule(ScheduledClass sc) {
         schedule[bookedCount - 1] = sc; // bookedCount already incremented in bookSlot method, so the current class should be added at bookedCount - 1 index
         }
-        //method to clear loaded schedule (for example when faculty logs out or when reloading from database)
-    void clearLoadedSchedule() {
-        for (int i = 0; i < assignedCourses.length; i++) {
-            assignedCourses[i] = null;
-        }
-        for (int i = 0; i < bookedSlots.length; i++) {
-            bookedSlots[i] = null;
-        }
-        for (int i = 0; i < schedule.length; i++) {
-            schedule[i] = null;
-        }
-        courseCount = 0;
-        bookedCount = 0;
-    }
-
-    void loadScheduledClassFromDatabase(ScheduledClass sc) {
-        if (sc == null) {
-            return;
-        }
-        Course course = sc.getCourse();
-        if (course != null && getAssignedCourse(course.getCourseName()) == null && courseCount < assignedCourses.length) {
-            assignedCourses[courseCount++] = course;
-            course.setAssignedFaculty(this);
-        }
-        if (bookedCount < bookedSlots.length) {
-            bookedSlots[bookedCount] = sc.getSlot();
-            schedule[bookedCount] = sc;
-            bookedCount++;
-        }
-    }
-
-    void clearLoadedDeadlines() {
-        deadlineManager.clearLoadedDeadlines();
-    }
-
-    void loadDeadlineFromDatabase(Course course, String taskName, String deadline) {
-        deadlineManager.loadDeadlineFromDatabase(course, taskName, deadline);
-    }
 
     //method to view teaching schedule of the faculty
     public void viewTeachingSchedule() {
@@ -1470,11 +1379,6 @@ class Faculty extends User {
     //makeup request method
     public void requestMakeup(String courseCode, String reason) {
         System.out.println("Makeup request by " + getName() +" for " + courseCode + ": " + reason);
-        try {
-            FacultyDbService.insertMakeupRequest(this, courseCode, reason);
-        } catch (SQLException e) {
-            System.out.println("Failed to save makeup request to database: " + e.getMessage());
-        }
     }//end of makeup request method(made it basic,more implementation to be done in admin module for approval and tracking)
 
      @Override
@@ -2495,7 +2399,419 @@ class Admin extends User {
 }//end of admin class
 
 public class Acadcore {
-    public static void main(String[] args) {
-        AcadcoreWebApp.start(3456);
+
+private static final ObjectMapper MAPPER = new ObjectMapper();
+private static final Path DATA_DIR = Paths.get("data");
+private static final Path DATA_FILE = DATA_DIR.resolve("acadcore-dummy-data.json");
+
+private static String getString(Map<String, Object> body, String key) {
+    Object value = body.get(key);
+    return value == null ? "" : String.valueOf(value).trim();
+}
+
+@SuppressWarnings("unchecked")
+private static List<Map<String, Object>> getMapList(Map<String, Object> data, String key) {
+    Object value = data.get(key);
+    if (value instanceof List<?>) {
+        return (List<Map<String, Object>>) value;
     }
+    List<Map<String, Object>> list = new ArrayList<>();
+    data.put(key, list);
+    return list;
+}
+
+private static Map<String, Object> mapOf(Object... keyVals) {
+    Map<String, Object> map = new LinkedHashMap<>();
+    for (int i = 0; i < keyVals.length; i += 2) {
+        map.put(String.valueOf(keyVals[i]), keyVals[i + 1]);
+    }
+    return map;
+}
+
+private static Map<String, Object> defaultDummyData() {
+    List<Map<String, Object>> users = new ArrayList<>();
+    users.add(mapOf("id", 1, "name", "System Admin", "email", "admin@acadcore.edu", "password", "admin123", "role", "admin"));
+    users.add(mapOf("id", 2, "name", "Dr. Ayesha Khan", "email", "faculty@acadcore.edu", "password", "faculty123", "role", "faculty"));
+    users.add(mapOf("id", 3, "name", "Ali Student", "email", "student@acadcore.edu", "password", "student123", "role", "student"));
+
+    List<String> adminCapabilities = new ArrayList<>();
+    adminCapabilities.add("Generate clash-free timetables");
+    adminCapabilities.add("Monitor faculty workload distribution");
+    adminCapabilities.add("Generate exam seating plan");
+    adminCapabilities.add("Track room utilization");
+    adminCapabilities.add("View maintenance issue reports");
+
+    List<String> facultyCapabilities = new ArrayList<>();
+    facultyCapabilities.add("View teaching schedule");
+    facultyCapabilities.add("Monitor weekly workload");
+    facultyCapabilities.add("Receive grading deadline reminders");
+    facultyCapabilities.add("Request makeups");
+    facultyCapabilities.add("View attendance analytics");
+
+    List<String> studentCapabilities = new ArrayList<>();
+    studentCapabilities.add("Join Smart Study Group Finder");
+    studentCapabilities.add("View personal timetable");
+    studentCapabilities.add("Detect course or exam clashes");
+    studentCapabilities.add("Use Assignment Prioritizer");
+    studentCapabilities.add("Get Attendance Risk Alerts");
+
+    List<Map<String, Object>> deadlines = new ArrayList<>();
+    deadlines.add(mapOf("course", "Introduction to Programming", "task", "Grade Midterm Exam", "deadline", "2026-05-03"));
+
+    List<Map<String, Object>> studyGroups = new ArrayList<>();
+    studyGroups.add(mapOf("groupId", "1", "name", "CS101 Study Circle", "members", 8, "maxMembers", 15));
+    studyGroups.add(mapOf("groupId", "2", "name", "CS201 Discussion", "members", 6, "maxMembers", 10));
+
+    List<Map<String, Object>> adminTimetable = new ArrayList<>();
+    adminTimetable.add(mapOf("course", "Introduction to Programming", "day", "Monday", "start", "09:00", "end", "10:30", "room", "A101", "faculty", "Dr. Ayesha Khan", "section", "A"));
+    adminTimetable.add(mapOf("course", "Data Structures", "day", "Tuesday", "start", "10:00", "end", "11:30", "room", "B205", "faculty", "Prof. Michael Chen", "section", "B"));
+    adminTimetable.add(mapOf("course", "Web Development", "day", "Wednesday", "start", "14:00", "end", "15:30", "room", "C101", "faculty", "Dr. Emily Parker", "section", "A"));
+
+    List<Map<String, Object>> facultySchedule = new ArrayList<>();
+    facultySchedule.add(mapOf("course", "Introduction to Programming", "day", "Monday", "start", "09:00", "end", "10:30", "room", "A101", "section", "A"));
+    facultySchedule.add(mapOf("course", "Introduction to Programming", "day", "Wednesday", "start", "09:00", "end", "10:30", "room", "A101", "section", "A"));
+    facultySchedule.add(mapOf("course", "Data Structures", "day", "Tuesday", "start", "10:00", "end", "11:30", "room", "B205", "section", "B"));
+
+    List<Map<String, Object>> facultyWorkload = new ArrayList<>();
+    facultyWorkload.add(mapOf("name", "Dr. Ayesha Khan", "credits", 12, "lectures", 18, "mon", 4, "tue", 3, "wed", 4, "thu", 3, "fri", 4, "status", "Balanced"));
+    facultyWorkload.add(mapOf("name", "Dr. Emily Parker", "credits", 15, "lectures", 22, "mon", 5, "tue", 5, "wed", 4, "thu", 4, "fri", 4, "status", "Heavy"));
+    facultyWorkload.add(mapOf("name", "Prof. Michael Chen", "credits", 9, "lectures", 14, "mon", 3, "tue", 3, "wed", 3, "thu", 2, "fri", 3, "status", "Balanced"));
+
+    List<Map<String, Object>> roomUtilization = new ArrayList<>();
+    roomUtilization.add(mapOf("room", "A101", "capacity", 50, "bookedSlots", 28, "maxSlots", 45, "utilization", 62, "status", "Balanced"));
+    roomUtilization.add(mapOf("room", "B205", "capacity", 80, "bookedSlots", 39, "maxSlots", 45, "utilization", 87, "status", "Busy"));
+
+    List<Map<String, Object>> maintenanceList = new ArrayList<>();
+    maintenanceList.add(mapOf("room", "A101", "issue", "Projector Malfunction", "reported", "2 days ago"));
+    maintenanceList.add(mapOf("room", "B205", "issue", "AC Not Cooling", "reported", "1 day ago"));
+
+    List<Map<String, Object>> facultyDeadlines = new ArrayList<>();
+    facultyDeadlines.add(mapOf("course", "Introduction to Programming", "task", "Grade Midterm Exam", "deadline", "2026-05-03"));
+
+    List<Map<String, Object>> facultyMakeups = new ArrayList<>();
+    facultyMakeups.add(mapOf("courseCode", "CS101", "proposedDate", "2026-05-08", "reason", "Lecture canceled due to meeting", "status", "Pending"));
+
+    List<Map<String, Object>> attendanceAnalytics = new ArrayList<>();
+    attendanceAnalytics.add(mapOf("student", "Michael Johnson", "id", "#STU045", "course", "Introduction to Programming", "attendance", 68));
+    attendanceAnalytics.add(mapOf("student", "Emma Davis", "id", "#STU067", "course", "Introduction to Programming", "attendance", 71));
+    attendanceAnalytics.add(mapOf("student", "James Brown", "id", "#STU089", "course", "Data Structures", "attendance", 65));
+
+    List<Map<String, Object>> studentCourses = new ArrayList<>();
+    studentCourses.add(mapOf("code", "CS101", "name", "Introduction to Programming", "credits", 3, "faculty", "Dr. Smith"));
+    studentCourses.add(mapOf("code", "CS201", "name", "Data Structures", "credits", 4, "faculty", "Dr. Chen"));
+    studentCourses.add(mapOf("code", "CS301", "name", "Web Development", "credits", 3, "faculty", "Prof. Parker"));
+
+    List<Map<String, Object>> studentAttendance = new ArrayList<>();
+    studentAttendance.add(mapOf("course", "Introduction to Programming", "attended", 28, "total", 30, "percent", 93, "status", "OK"));
+    studentAttendance.add(mapOf("course", "Data Structures", "attended", 18, "total", 25, "percent", 72, "status", "AT RISK"));
+    studentAttendance.add(mapOf("course", "Web Development", "attended", 22, "total", 24, "percent", 92, "status", "OK"));
+
+    List<Map<String, Object>> studentAssignments = new ArrayList<>();
+    studentAssignments.add(mapOf("course", "CS201", "title", "Tree Traversal Implementation", "dueIn", "2 days", "weight", 15, "priority", "URGENT"));
+    studentAssignments.add(mapOf("course", "CS301", "title", "React Component Design", "dueIn", "5 days", "weight", 12, "priority", "MEDIUM"));
+    studentAssignments.add(mapOf("course", "CS101", "title", "Sorting Algorithms Quiz", "dueIn", "8 days", "weight", 10, "priority", "SAFE"));
+
+    List<Map<String, Object>> studentTimetable = new ArrayList<>();
+    studentTimetable.add(mapOf("time", "09:00", "mon", "CS101 | A101 | Dr. Smith", "tue", "", "wed", "CS101 | A101 | Dr. Smith", "thu", "", "fri", "CS101 | A101 | Dr. Smith"));
+    studentTimetable.add(mapOf("time", "10:00", "mon", "", "tue", "CS201 | B205 | Dr. Chen", "wed", "", "thu", "CS201 | B205 | Dr. Chen", "fri", ""));
+    studentTimetable.add(mapOf("time", "14:00", "mon", "CS301 | C101 | Prof. Parker", "tue", "", "wed", "CS301 | C101 | Prof. Parker", "thu", "", "fri", ""));
+
+    List<Map<String, Object>> studentExams = new ArrayList<>();
+    studentExams.add(mapOf("course", "CS101 - Introduction to Programming", "date", "Dec 15, 2024", "room", "A101", "seat", 12));
+    studentExams.add(mapOf("course", "CS201 - Data Structures", "date", "Dec 18, 2024", "room", "B205", "seat", 8));
+
+    Map<String, Object> data = new LinkedHashMap<>();
+    data.put("users", users);
+    data.put("adminCapabilities", adminCapabilities);
+    data.put("facultyCapabilities", facultyCapabilities);
+    data.put("studentCapabilities", studentCapabilities);
+    data.put("overview", mapOf("totalUsers", 2500, "totalFaculty", 85, "totalStudents", 2380, "totalRooms", 42, "totalCourses", 120));
+    data.put("adminTimetable", adminTimetable);
+    data.put("facultySchedule", facultySchedule);
+    data.put("facultyWorkload", facultyWorkload);
+    data.put("roomUtilization", roomUtilization);
+    data.put("maintenanceList", maintenanceList);
+    data.put("facultyDeadlines", facultyDeadlines);
+    data.put("facultyMakeups", facultyMakeups);
+    data.put("attendanceAnalytics", attendanceAnalytics);
+    data.put("studentCourses", studentCourses);
+    data.put("studentAttendance", studentAttendance);
+    data.put("studentAssignments", studentAssignments);
+    data.put("studentTimetable", studentTimetable);
+    data.put("studentExams", studentExams);
+    data.put("deadlines", deadlines);
+    data.put("makeupRequests", new ArrayList<Map<String, Object>>());
+    data.put("studyGroups", studyGroups);
+    data.put("maintenanceReports", new ArrayList<>(List.of("Room A101 - Projector Malfunction", "Room B205 - AC Not Cooling")));
+    data.put("studentClash", mapOf("hasClash", true, "message", "CS201 tutorial overlaps with MA101 quiz on Tuesday 11:00-12:00."));
+    data.put("generatedTimetables", new ArrayList<Map<String, Object>>());
+    data.put("generatedSeatingPlans", new ArrayList<Map<String, Object>>());
+    return data;
+}
+
+private static synchronized Map<String, Object> loadData() {
+    try {
+        if (!Files.exists(DATA_DIR)) {
+            Files.createDirectories(DATA_DIR);
+        }
+        if (!Files.exists(DATA_FILE)) {
+            Map<String, Object> seed = defaultDummyData();
+            MAPPER.writerWithDefaultPrettyPrinter().writeValue(DATA_FILE.toFile(), seed);
+            return seed;
+        }
+        return MAPPER.readValue(DATA_FILE.toFile(), new TypeReference<Map<String, Object>>() {
+        });
+    } catch (IOException ex) {
+        System.out.println("Data load fallback used: " + ex.getMessage());
+        return new HashMap<>(defaultDummyData());
+    }
+}
+
+private static synchronized void saveData(Map<String, Object> data) {
+    try {
+        if (!Files.exists(DATA_DIR)) {
+            Files.createDirectories(DATA_DIR);
+        }
+        MAPPER.writerWithDefaultPrettyPrinter().writeValue(DATA_FILE.toFile(), data);
+    } catch (IOException ex) {
+        System.out.println("Data save failed: " + ex.getMessage());
+    }
+}
+
+public static void main(String[] args) {
+    loadData();
+
+    io.javalin.Javalin app = io.javalin.Javalin.create(config -> {
+        config.staticFiles.add(staticFiles -> {
+            staticFiles.hostedPath = "/";
+            staticFiles.directory = "/public";
+            staticFiles.location = io.javalin.http.staticfiles.Location.CLASSPATH;
+        });
+    }).start(3456);
+
+    app.get("/", ctx -> ctx.redirect("/index.html"));
+
+    app.post("/api/auth/login", ctx -> {
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String email = getString(body, "email");
+        String password = getString(body, "password");
+        String role = getString(body, "role").toLowerCase();
+
+        Map<String, Object> data = loadData();
+        List<Map<String, Object>> users = getMapList(data, "users");
+
+        for (Map<String, Object> user : users) {
+            String userEmail = String.valueOf(user.get("email"));
+            String userPassword = String.valueOf(user.get("password"));
+            String userRole = String.valueOf(user.get("role"));
+            if (userEmail.equalsIgnoreCase(email) && userPassword.equals(password) && userRole.equalsIgnoreCase(role)) {
+                ctx.json(mapOf("success", true, "message", "Login successful.", "name", user.get("name"), "role", userRole));
+                return;
+            }
+        }
+
+        ctx.json(mapOf("success", false, "message", "Invalid credentials for selected role."));
+    });
+
+    app.get("/api/admin/overview", ctx -> {
+        Map<String, Object> data = loadData();
+        Object overview = data.get("overview");
+        if (overview instanceof Map<?, ?>) {
+            ctx.json(overview);
+            return;
+        }
+        ctx.json(mapOf("totalUsers", 0, "totalFaculty", 0, "totalStudents", 0, "totalRooms", 0, "totalCourses", 0));
+    });
+
+    app.get("/api/admin/dashboard", ctx -> {
+        Map<String, Object> data = loadData();
+        ctx.json(mapOf(
+            "overview", data.get("overview"),
+            "adminTimetable", data.get("adminTimetable"),
+            "facultyWorkload", data.get("facultyWorkload"),
+            "roomUtilization", data.get("roomUtilization"),
+            "maintenanceList", data.get("maintenanceList"),
+            "generatedTimetables", data.get("generatedTimetables"),
+            "generatedSeatingPlans", data.get("generatedSeatingPlans")
+        ));
+    });
+
+    app.post("/api/admin/timetable/generate", ctx -> {
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String semester = getString(body, "semester");
+        String batch = getString(body, "batch");
+
+        Map<String, Object> data = loadData();
+        List<Map<String, Object>> generated = getMapList(data, "generatedTimetables");
+        List<Map<String, Object>> entries = new ArrayList<>();
+        entries.add(mapOf("course", "Introduction to Programming", "day", "Monday", "start", "09:00", "end", "10:30", "room", "A101", "faculty", "Dr. Ayesha Khan", "section", "A"));
+        entries.add(mapOf("course", "Data Structures", "day", "Tuesday", "start", "10:00", "end", "11:30", "room", "B205", "faculty", "Prof. Michael Chen", "section", "B"));
+        entries.add(mapOf("course", "Web Development", "day", "Wednesday", "start", "14:00", "end", "15:30", "room", "C101", "faculty", "Dr. Emily Parker", "section", "A"));
+        generated.add(mapOf("semester", semester, "batch", batch, "status", "generated", "entries", entries));
+        saveData(data);
+
+        ctx.json(mapOf("success", true, "message", "Clash-free timetable generated for " + semester + " (" + batch + ").", "entries", entries));
+    });
+
+    app.post("/api/admin/exam/seating/generate", ctx -> {
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String date = getString(body, "date");
+        String courses = getString(body, "courses");
+        String rooms = getString(body, "rooms");
+
+        Map<String, Object> data = loadData();
+        List<Map<String, Object>> generated = getMapList(data, "generatedSeatingPlans");
+        List<Map<String, Object>> assignments = new ArrayList<>();
+        String[] courseItems = courses.isEmpty() ? new String[0] : courses.split(",");
+        String[] roomItems = rooms.isEmpty() ? new String[0] : rooms.split(",");
+        for (int i = 0; i < courseItems.length; i++) {
+            String courseItem = courseItems[i].trim();
+            String roomItem = roomItems.length == 0 ? "TBA" : roomItems[i % roomItems.length].trim();
+            assignments.add(mapOf("course", courseItem, "room", roomItem, "seat", i + 1, "date", date));
+        }
+        generated.add(mapOf("date", date, "courses", courses, "rooms", rooms, "status", "generated", "assignments", assignments));
+        saveData(data);
+
+        ctx.json(mapOf("success", true, "message", "Exam seating plan generated for " + (date.isEmpty() ? "selected date" : date) + ".", "assignments", assignments));
+    });
+
+    app.get("/api/faculty/dashboard", ctx -> {
+        Map<String, Object> data = loadData();
+        ctx.json(mapOf(
+            "facultySchedule", data.get("facultySchedule"),
+            "facultyWorkload", data.get("facultyWorkload"),
+            "facultyDeadlines", data.get("facultyDeadlines"),
+            "facultyMakeups", data.get("facultyMakeups"),
+            "attendanceAnalytics", data.get("attendanceAnalytics"),
+            "assignedCourses", data.get("studentCourses"),
+            "availableSlots", List.of(
+                mapOf("day", "Monday", "time", "09:00-12:00", "status", "Available"),
+                mapOf("day", "Wednesday", "time", "14:00-17:00", "status", "Booked"),
+                mapOf("day", "Friday", "time", "10:00-13:00", "status", "Available")
+            )
+        ));
+    });
+
+    app.get("/api/student/dashboard", ctx -> {
+        Map<String, Object> data = loadData();
+        ctx.json(mapOf(
+            "studentCourses", data.get("studentCourses"),
+            "studentAttendance", data.get("studentAttendance"),
+            "studentAssignments", data.get("studentAssignments"),
+            "studentTimetable", data.get("studentTimetable"),
+            "studentExams", data.get("studentExams"),
+            "studyGroups", data.get("studyGroups"),
+            "studentClash", data.get("studentClash")
+        ));
+    });
+
+    app.post("/api/faculty/deadline/set", ctx -> {
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String course = getString(body, "course");
+        String task = getString(body, "task");
+        String deadline = getString(body, "deadline");
+
+        if (task.isEmpty() || deadline.isEmpty()) {
+            ctx.json(mapOf("success", false, "message", "Task and deadline are required."));
+            return;
+        }
+
+        Map<String, Object> data = loadData();
+        List<Map<String, Object>> deadlines = getMapList(data, "deadlines");
+        deadlines.add(mapOf("course", course, "task", task, "deadline", deadline));
+        saveData(data);
+
+        ctx.json(mapOf("success", true, "message", "Deadline reminder saved."));
+    });
+
+    app.post("/api/faculty/deadline/done", ctx -> {
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String course = getString(body, "course");
+        String task = getString(body, "task");
+
+        Map<String, Object> data = loadData();
+        List<Map<String, Object>> deadlines = getMapList(data, "deadlines");
+
+        boolean removed = false;
+        for (int i = 0; i < deadlines.size(); i++) {
+            Map<String, Object> item = deadlines.get(i);
+            String itemCourse = String.valueOf(item.get("course"));
+            String itemTask = String.valueOf(item.get("task"));
+            if (itemCourse.equalsIgnoreCase(course) && itemTask.equalsIgnoreCase(task)) {
+                deadlines.remove(i);
+                removed = true;
+                break;
+            }
+        }
+
+        if (!removed) {
+            ctx.json(mapOf("success", false, "message", "Deadline task not found."));
+            return;
+        }
+
+        saveData(data);
+        ctx.json(mapOf("success", true, "message", "Deadline marked done."));
+    });
+
+    app.post("/api/faculty/makeup", ctx -> {
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String courseCode = getString(body, "courseCode");
+        String proposedDate = getString(body, "proposedDate");
+        String reason = getString(body, "reason");
+
+        if (courseCode.isEmpty() || proposedDate.isEmpty() || reason.isEmpty()) {
+            ctx.json(mapOf("success", false, "message", "Course, date, and reason are required."));
+            return;
+        }
+
+        Map<String, Object> data = loadData();
+        List<Map<String, Object>> makeupRequests = getMapList(data, "makeupRequests");
+        makeupRequests.add(mapOf("courseCode", courseCode, "proposedDate", proposedDate, "reason", reason, "status", "Pending"));
+        saveData(data);
+
+        ctx.json(mapOf("success", true, "message", "Makeup request submitted successfully."));
+    });
+
+    app.post("/api/student/study-groups/join", ctx -> {
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String groupId = getString(body, "groupId");
+
+        Map<String, Object> data = loadData();
+        List<Map<String, Object>> groups = getMapList(data, "studyGroups");
+
+        for (Map<String, Object> group : groups) {
+            String id = String.valueOf(group.get("groupId"));
+            if (!id.equals(groupId)) {
+                continue;
+            }
+
+            int members = Integer.parseInt(String.valueOf(group.get("members")));
+            int maxMembers = Integer.parseInt(String.valueOf(group.get("maxMembers")));
+            if (members >= maxMembers) {
+                ctx.json(mapOf("success", false, "message", "Study group is already full."));
+                return;
+            }
+
+            group.put("members", members + 1);
+            saveData(data);
+            ctx.json(mapOf("success", true, "message", "You joined " + group.get("name") + "."));
+            return;
+        }
+
+        ctx.json(mapOf("success", false, "message", "Study group not found."));
+    });
+
+    app.get("/api/student/clashes", ctx -> {
+        Map<String, Object> data = loadData();
+        Object clash = data.get("studentClash");
+        if (clash instanceof Map<?, ?>) {
+            ctx.json(clash);
+            return;
+        }
+        ctx.json(mapOf("hasClash", false, "message", "No clashes found."));
+    });
+
+    System.out.println("Open your browser at: http://localhost:3456");
+}
+
 }

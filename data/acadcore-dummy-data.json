@@ -1,0 +1,403 @@
+{
+  "users" : [ {
+    "id" : 1,
+    "name" : "System Admin",
+    "email" : "admin@acadcore.edu",
+    "password" : "admin123",
+    "role" : "admin"
+  }, {
+    "id" : 2,
+    "name" : "Dr. Ayesha Khan",
+    "email" : "faculty@acadcore.edu",
+    "password" : "faculty123",
+    "role" : "faculty"
+  }, {
+    "id" : 3,
+    "name" : "Ali Student",
+    "email" : "student@acadcore.edu",
+    "password" : "student123",
+    "role" : "student"
+  } ],
+  "adminCapabilities" : [ "Generate clash-free timetables", "Monitor faculty workload distribution", "Generate exam seating plan", "Track room utilization", "View maintenance issue reports" ],
+  "facultyCapabilities" : [ "View teaching schedule", "Monitor weekly workload", "Receive grading deadline reminders", "Request makeups", "View attendance analytics" ],
+  "studentCapabilities" : [ "Join Smart Study Group Finder", "View personal timetable", "Detect course or exam clashes", "Use Assignment Prioritizer", "Get Attendance Risk Alerts" ],
+  "overview" : {
+    "totalUsers" : 2500,
+    "totalFaculty" : 85,
+    "totalStudents" : 2380,
+    "totalRooms" : 42,
+    "totalCourses" : 120
+  },
+  "adminTimetable" : [ {
+    "course" : "Introduction to Programming",
+    "day" : "Monday",
+    "start" : "09:00",
+    "end" : "10:30",
+    "room" : "A101",
+    "faculty" : "Dr. Ayesha Khan",
+    "section" : "A"
+  }, {
+    "course" : "Data Structures",
+    "day" : "Tuesday",
+    "start" : "10:00",
+    "end" : "11:30",
+    "room" : "B205",
+    "faculty" : "Prof. Michael Chen",
+    "section" : "B"
+  }, {
+    "course" : "Web Development",
+    "day" : "Wednesday",
+    "start" : "14:00",
+    "end" : "15:30",
+    "room" : "C101",
+    "faculty" : "Dr. Emily Parker",
+    "section" : "A"
+  } ],
+  "facultyWorkload" : [ {
+    "name" : "Dr. James Smith",
+    "credits" : 12,
+    "lectures" : 18,
+    "mon" : 4,
+    "tue" : 3,
+    "wed" : 4,
+    "thu" : 3,
+    "fri" : 4,
+    "status" : "Balanced"
+  }, {
+    "name" : "Dr. Emily Parker",
+    "credits" : 15,
+    "lectures" : 22,
+    "mon" : 5,
+    "tue" : 5,
+    "wed" : 4,
+    "thu" : 4,
+    "fri" : 4,
+    "status" : "Heavy"
+  }, {
+    "name" : "Prof. Michael Chen",
+    "credits" : 9,
+    "lectures" : 14,
+    "mon" : 3,
+    "tue" : 3,
+    "wed" : 3,
+    "thu" : 2,
+    "fri" : 3,
+    "status" : "Balanced"
+  } ],
+  "roomUtilization" : [ {
+    "room" : "A101",
+    "capacity" : 50,
+    "bookedSlots" : 28,
+    "maxSlots" : 45,
+    "utilization" : 62
+  }, {
+    "room" : "B205",
+    "capacity" : 80,
+    "bookedSlots" : 39,
+    "maxSlots" : 45,
+    "utilization" : 87
+  } ],
+  "maintenanceList" : [ {
+    "room" : "A101",
+    "issue" : "Projector Malfunction",
+    "reported" : "2 days ago"
+  }, {
+    "room" : "B205",
+    "issue" : "AC Not Cooling",
+    "reported" : "1 day ago"
+  } ],
+  "deadlines" : [ {
+    "course" : "Introduction to Programming",
+    "task" : "sudoku assignment",
+    "deadline" : "2026-04-30"
+  }, {
+    "course" : "Data Structures",
+    "task" : "sudoku",
+    "deadline" : "2026-04-21"
+  } ],
+  "facultySchedule" : [ {
+    "course" : "Introduction to Programming",
+    "day" : "Monday",
+    "start" : "09:00",
+    "end" : "10:30",
+    "room" : "A101",
+    "section" : "A"
+  }, {
+    "course" : "Data Structures",
+    "day" : "Tuesday",
+    "start" : "10:00",
+    "end" : "11:30",
+    "room" : "B205",
+    "section" : "B"
+  } ],
+  "facultyDeadlines" : [ {
+    "course" : "Introduction to Programming",
+    "task" : "Grade Midterm Exam",
+    "deadline" : "2026-05-03"
+  } ],
+  "facultyMakeups" : [ ],
+  "attendanceAnalytics" : [ {
+    "student" : "Ali Student",
+    "id" : "2023001",
+    "course" : "Introduction to Programming",
+    "attendance" : 72
+  }, {
+    "student" : "Sara Ali",
+    "id" : "2023002",
+    "course" : "Data Structures",
+    "attendance" : 84
+  } ],
+  "studentCourses" : [ {
+    "name" : "Introduction to Programming",
+    "code" : "CS101",
+    "credits" : 3,
+    "faculty" : "Dr. Ayesha Khan"
+  }, {
+    "name" : "Data Structures",
+    "code" : "CS201",
+    "credits" : 4,
+    "faculty" : "Prof. Michael Chen"
+  }, {
+    "name" : "Web Development",
+    "code" : "CS301",
+    "credits" : 3,
+    "faculty" : "Dr. Emily Parker"
+  } ],
+  "studentAttendance" : [ {
+    "course" : "Introduction to Programming",
+    "attended" : 12,
+    "total" : 16,
+    "percent" : 75,
+    "status" : "Safe"
+  }, {
+    "course" : "Data Structures",
+    "attended" : 9,
+    "total" : 14,
+    "percent" : 64,
+    "status" : "Risk"
+  } ],
+  "studentAssignments" : [ {
+    "course" : "CS101",
+    "title" : "Project 1",
+    "dueIn" : 3,
+    "weight" : 20,
+    "priority" : "High"
+  }, {
+    "course" : "CS201",
+    "title" : "Lab Report",
+    "dueIn" : 7,
+    "weight" : 15,
+    "priority" : "Medium"
+  }, {
+    "course" : "CS301",
+    "title" : "Quiz Prep",
+    "dueIn" : 1,
+    "weight" : 10,
+    "priority" : "Urgent"
+  } ],
+  "studentTimetable" : [ {
+    "time" : "09:00-10:00",
+    "mon" : "CS101",
+    "tue" : "",
+    "wed" : "CS301",
+    "thu" : "",
+    "fri" : ""
+  }, {
+    "time" : "10:00-11:00",
+    "mon" : "",
+    "tue" : "CS201",
+    "wed" : "",
+    "thu" : "",
+    "fri" : "CS101 Lab"
+  } ],
+  "studentExams" : [ {
+    "course" : "Introduction to Programming",
+    "date" : "2026-04-09",
+    "room" : "A101",
+    "seat" : 1
+  } ],
+  "makeupRequests" : [ {
+    "courseCode" : "CS103",
+    "proposedDate" : "2026-04-29",
+    "reason" : "Online Class missed",
+    "status" : "Pending"
+  } ],
+  "studyGroups" : [ {
+    "groupId" : "1",
+    "name" : "CS101 Study Circle",
+    "members" : 11,
+    "maxMembers" : 15
+  }, {
+    "groupId" : "2",
+    "name" : "CS201 Discussion",
+    "members" : 8,
+    "maxMembers" : 10
+  } ],
+  "maintenanceReports" : [ "Room A101 - Projector Malfunction", "Room B205 - AC Not Cooling" ],
+  "studentClash" : {
+    "hasClash" : true,
+    "message" : "CS201 tutorial overlaps with MA101 quiz on Tuesday 11:00-12:00."
+  },
+  "generatedTimetables" : [ {
+    "semester" : "Fall 2024",
+    "batch" : "All Batches",
+    "status" : "generated",
+    "entries" : [ {
+      "course" : "Introduction to Programming",
+      "day" : "Monday",
+      "start" : "09:00",
+      "end" : "10:30",
+      "room" : "A101",
+      "faculty" : "Dr. Ayesha Khan",
+      "section" : "A"
+    }, {
+      "course" : "Data Structures",
+      "day" : "Tuesday",
+      "start" : "10:00",
+      "end" : "11:30",
+      "room" : "B205",
+      "faculty" : "Prof. Michael Chen",
+      "section" : "B"
+    }, {
+      "course" : "Web Development",
+      "day" : "Wednesday",
+      "start" : "14:00",
+      "end" : "15:30",
+      "room" : "C101",
+      "faculty" : "Dr. Emily Parker",
+      "section" : "A"
+    } ]
+  }, {
+    "semester" : "Spring 2025",
+    "batch" : "2023",
+    "status" : "generated",
+    "entries" : [ {
+      "course" : "Introduction to Programming",
+      "day" : "Monday",
+      "start" : "09:00",
+      "end" : "10:30",
+      "room" : "A101",
+      "faculty" : "Dr. Ayesha Khan",
+      "section" : "A"
+    }, {
+      "course" : "Data Structures",
+      "day" : "Tuesday",
+      "start" : "10:00",
+      "end" : "11:30",
+      "room" : "B205",
+      "faculty" : "Prof. Michael Chen",
+      "section" : "B"
+    }, {
+      "course" : "Web Development",
+      "day" : "Wednesday",
+      "start" : "14:00",
+      "end" : "15:30",
+      "room" : "C101",
+      "faculty" : "Dr. Emily Parker",
+      "section" : "A"
+    } ]
+  }, {
+    "semester" : "Fall 2024",
+    "batch" : "All Batches",
+    "status" : "generated",
+    "entries" : [ {
+      "course" : "Introduction to Programming",
+      "day" : "Monday",
+      "start" : "09:00",
+      "end" : "10:30",
+      "room" : "A101",
+      "faculty" : "Dr. Ayesha Khan",
+      "section" : "A"
+    }, {
+      "course" : "Data Structures",
+      "day" : "Tuesday",
+      "start" : "10:00",
+      "end" : "11:30",
+      "room" : "B205",
+      "faculty" : "Prof. Michael Chen",
+      "section" : "B"
+    }, {
+      "course" : "Web Development",
+      "day" : "Wednesday",
+      "start" : "14:00",
+      "end" : "15:30",
+      "room" : "C101",
+      "faculty" : "Dr. Emily Parker",
+      "section" : "A"
+    } ]
+  }, {
+    "semester" : "Spring 2025",
+    "batch" : "2023",
+    "status" : "generated",
+    "entries" : [ {
+      "course" : "Introduction to Programming",
+      "day" : "Monday",
+      "start" : "09:00",
+      "end" : "10:30",
+      "room" : "A101",
+      "faculty" : "Dr. Ayesha Khan",
+      "section" : "A"
+    }, {
+      "course" : "Data Structures",
+      "day" : "Tuesday",
+      "start" : "10:00",
+      "end" : "11:30",
+      "room" : "B205",
+      "faculty" : "Prof. Michael Chen",
+      "section" : "B"
+    }, {
+      "course" : "Web Development",
+      "day" : "Wednesday",
+      "start" : "14:00",
+      "end" : "15:30",
+      "room" : "C101",
+      "faculty" : "Dr. Emily Parker",
+      "section" : "A"
+    } ]
+  } ],
+  "generatedSeatingPlans" : [ {
+    "date" : "2026-04-09",
+    "courses" : "CS101",
+    "rooms" : "A101",
+    "status" : "generated",
+    "assignments" : [ {
+      "course" : "CS101",
+      "room" : "A101",
+      "seat" : 1,
+      "date" : "2026-04-09"
+    } ]
+  }, {
+    "date" : "2026-01-31",
+    "courses" : "CS201",
+    "rooms" : "A101,A103",
+    "status" : "generated",
+    "assignments" : [ {
+      "course" : "CS201",
+      "room" : "A101",
+      "seat" : 1,
+      "date" : "2026-01-31"
+    } ]
+  }, {
+    "date" : "2026-06-10",
+    "courses" : "CS203",
+    "rooms" : "A102,A103,A104",
+    "status" : "generated",
+    "assignments" : [ {
+      "course" : "CS203",
+      "room" : "A102",
+      "seat" : 1,
+      "date" : "2026-06-10"
+    } ]
+  }, {
+    "date" : "2026-06-10",
+    "courses" : "CS203",
+    "rooms" : "A102,A103,A104",
+    "status" : "generated",
+    "assignments" : [ {
+      "course" : "CS203",
+      "room" : "A102",
+      "seat" : 1,
+      "date" : "2026-06-10"
+    } ]
+  } ]
+}
